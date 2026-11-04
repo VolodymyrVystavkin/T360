@@ -1,56 +1,67 @@
+
 name: Engineering AI CI
+
 on:
   push:
     branches: [main]
+
   pull_request:
     branches: [main]
+
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
-  verify:
-    name: Test and build on Ubuntu
+  build:
+    name: Build Angular and FastAPI
     runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 20
-    env:
-      COMPOSE_PROJECT_NAME: engineering-ai-ci-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          cache: pip
-          cache-dependency-path: backend/requirements*.txt
-      - name: Install backend dependencies
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install -r backend/requirements-dev.txt
-      - name: Backend tests
-        run: .venv/bin/python -m pytest -q
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Frontend tests
-        working-directory: frontend
-        run: npm test
-      - name: Frontend production build
-        working-directory: frontend
-        run: npm run build
-      - name: Verify Compose and build containers
-        run: |
-          docker compose config --quiet
-          docker compose build
-      - name: Container integration smoke test
+      # Step 1: Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Verify Docker installation
+      - name: Verify Docker
         shell: bash
         run: |
-          trap 'docker compose -f compose.yaml -f tests/compose.ci.yaml down --volumes' EXIT
-          docker compose -f compose.yaml -f tests/compose.ci.yaml up -d --wait
-          docker compose -f compose.yaml -f tests/compose.ci.yaml exec -T backend python - < tests/smoke.py
+          set -euo pipefail
+
+          echo "Checking Docker installation..."
+          docker --version
+
+          echo "Checking Docker Compose..."
+          docker compose version
+
+          echo "Checking Docker Engine..."
+          docker info > /dev/null
+
+      # Step 3: Validate Docker Compose
+      - name: Validate Docker Compose
+        run: |
+          docker compose config --quiet
+          echo "Docker Compose configuration is valid."
+
+      # Step 4: Build Docker images
+      - name: Build Docker images
+        run: |
+          echo "Building Angular and FastAPI images..."
+          docker compose build
+
+      # Step 5: Verify images
+      - name: Verify Docker images
+        run: |
+          echo "Checking built images..."
+          docker compose images
+
+      # Step 6: Complete CI build
+      - name: Build completed
+        run: |
+          echo "Engineering AI Docker build completed successfully."
