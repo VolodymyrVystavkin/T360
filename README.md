@@ -1,4 +1,10 @@
-# Engineering AI
+# Easy start 
+Run `docker compose up` to build, create, and start the backend and frontend containers defined in the Docker Compose configuration. Docker Compose automatically creates a shared network for communication between services. Use `docker compose up -d` to run the containers in the background or `docker compose up --build` to rebuild the images before starting. To stop and remove the containers, run `docker compose down`.
+
+Open your web browser and navigate to `http://127.0.0.1:8080` to access the application.
+
+
+# T360
 
 A full-stack engineering workspace built with **Angular 21 + Angular Material** and **Python FastAPI**. Define a signed dimensional stack, compare worst-case and RSS bounds, and run reproducible Monte Carlo simulations. Results include a histogram, simulated yield, central 95% sample interval, engineering guidance, and JSON export.
 
