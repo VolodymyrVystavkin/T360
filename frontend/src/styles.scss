@@ -1,0 +1,5 @@
+@use '@angular/material' as mat;
+html { @include mat.theme((color: (primary: mat.$cyan-palette), typography: Arial, density: -1)); }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f4f6f8; color: #172c3b; font-family: Arial, sans-serif; }
+button, input { font: inherit; }

@@ -1,0 +1,6 @@
+# No host ports in CI: concurrent jobs cannot collide with local services.
+services:
+  backend:
+    ports: !reset []
+  frontend:
+    ports: !reset []

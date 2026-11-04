@@ -1,0 +1,49 @@
+<header><a class="brand" href="/" aria-label="T360 home"><span class="logo">T360</span> Tolerance <strong>360</strong></a><span class="workspace">ANALYSIS WORKSPACE / 01</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">PRECISION STARTS WITH UNDERSTANDING</p><h1>Tolerance analysis<span>.</span></h1><p class="subtitle">Explore your stack. Understand variation. Build with confidence.</p></div><span class="badge">DIMENSIONAL STACK · V1.0</span></div>
+  <form #form="ngForm" (ngSubmit)="run(form)" (input)="invalidate()">
+    <fieldset [disabled]="busy()">
+      <section class="panel">
+        <div class="section-heading"><div><span class="step">01</span><h2>Define your stack</h2></div><span class="muted">Use one consistent unit for all dimensions</span></div>
+        <div class="table-scroll"><table><thead><tr><th scope="col">COMPONENT</th><th scope="col">NOMINAL</th><th scope="col">± TOLERANCE</th><th scope="col">COEFFICIENT</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+          @for (component of input.components; track $index; let i = $index) {
+            <tr><td><span class="row-number">{{ i + 1 }}</span><input matInput [attr.aria-label]="'Component ' + (i+1) + ' name'" [(ngModel)]="component.name" name="name{{i}}" required maxlength="100"></td>
+            <td><input matInput type="number" step="any" [attr.aria-label]="'Nominal ' + (i+1)" [(ngModel)]="component.nominal" name="nominal{{i}}" required min="-1000000000" max="1000000000"></td>
+            <td><input matInput type="number" step="any" [attr.aria-label]="'Tolerance ' + (i+1)" [(ngModel)]="component.tolerance" name="tolerance{{i}}" required min="0" max="1000000"></td>
+            <td><input matInput type="number" step="any" [attr.aria-label]="'Coefficient ' + (i+1)" [(ngModel)]="component.coefficient" name="coefficient{{i}}" required min="-1000" max="1000"></td>
+            <td><button mat-button type="button" (click)="remove(i)" [disabled]="input.components.length === 1" [attr.aria-label]="'Remove component ' + (i+1)">×</button></td></tr>
+          }
+        </tbody></table></div>
+        <button mat-button type="button" class="add" (click)="add()" [disabled]="input.components.length >= 100">+ Add component</button>
+      </section>
+      <section class="panel settings">
+        <div class="section-heading"><div><span class="step">02</span><h2>Set analysis parameters</h2></div></div>
+        <div class="fields">
+          <mat-form-field appearance="outline"><mat-label>Lower specification</mat-label><input matInput type="number" step="any" name="lower" [(ngModel)]="input.lower_spec" required min="-1000000000000000" max="1000000000000000"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Upper specification</mat-label><input matInput type="number" step="any" name="upper" [(ngModel)]="input.upper_spec" required min="-1000000000000000" max="1000000000000000"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Monte Carlo samples</mat-label><input matInput type="number" step="1" pattern="[0-9]+" name="samples" [(ngModel)]="input.samples" required min="100" max="200000"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Random seed</mat-label><input matInput type="number" step="1" pattern="[0-9]+" name="seed" [(ngModel)]="input.seed" required min="0" max="4294967295"></mat-form-field>
+        </div>
+        <div class="run-row"><p>Independent, uniform deviations · Reproducible with a fixed seed</p><button mat-flat-button type="submit" [disabled]="form.invalid || busy()">{{ busy() ? 'Analyzing…' : 'Run analysis →' }}</button></div>
+      </section>
+    </fieldset>
+  </form>
+  @if (busy()) { <mat-progress-bar mode="indeterminate" aria-label="Running tolerance analysis" /> }
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  <section aria-live="polite" aria-atomic="true">
+    @if (result(); as r) {
+      <div class="results-heading"><div><p class="eyebrow">03 / ANALYSIS RESULTS</p><h2>Variation, made visible.</h2></div><button mat-stroked-button (click)="exportResult()">Export JSON ↓</button></div>
+      <div class="metrics">
+        <article><p>NOMINAL STACK</p><strong>{{ r.nominal | number:'1.3-3' }}</strong><small>Σ coefficient × nominal</small></article>
+        <article><p>WORST CASE</p><strong>± {{ r.worst_case.half_width | number:'1.3-3' }}</strong><small>{{ r.worst_case.lower | number:'1.3-3' }} to {{ r.worst_case.upper | number:'1.3-3' }}</small></article>
+        <article><p>ROOT SUM SQUARE</p><strong>± {{ r.rss.half_width | number:'1.3-3' }}</strong><small>Tolerance index · not a confidence interval</small></article>
+        <article class="yield"><p>SIMULATED YIELD</p><strong>{{ r.monte_carlo.yield_percent | number:'1.2-2' }}<span>%</span></strong><small>{{ r.monte_carlo.samples | number }} samples · seed {{ r.monte_carlo.seed }}</small></article>
+      </div>
+      <div class="result-grid"><article class="panel distribution"><h3>Monte Carlo distribution</h3><p class="muted">Sampled stack dimensions · 30 bins</p><div class="histogram" role="img" [attr.aria-label]="'Histogram of ' + r.monte_carlo.samples + ' simulations, from ' + r.monte_carlo.minimum + ' to ' + r.monte_carlo.maximum">
+        @for (count of r.monte_carlo.counts; track $index) { <div [style.height.%]="barHeight(count, r.monte_carlo.counts)" [title]="count + ' samples'"></div> }
+      </div><div class="axis"><span>{{ r.monte_carlo.bin_edges[0] | number:'1.3-3' }}</span><span>Stack dimension</span><span>{{ r.monte_carlo.bin_edges[30] | number:'1.3-3' }}</span></div><p>Mean {{ r.monte_carlo.mean | number:'1.4-4' }} · Standard deviation {{ r.monte_carlo.standard_deviation | number:'1.4-4' }}</p><p>Central 95% sample interval: {{ r.monte_carlo.p025 | number:'1.4-4' }} to {{ r.monte_carlo.p975 | number:'1.4-4' }}</p></article>
+      <article class="panel insights"><p class="eyebrow">ENGINEERING INSIGHTS</p><h3>What your stack tells you</h3>@for (insight of r.insights; track $index) { <p class="insight">{{ insight }}</p> }<small>Deterministic engineering guidance. No language model or external AI service is used.</small></article></div>
+    } @else { @if (!busy()) { <div class="empty"><span>T360</span><h3>Your next decision starts here.</h3><p>Define the stack above and run an analysis to compare three views of variation.</p></div> } }
+  </section>
+  <footer>T360 <span>Independent components. Explicit assumptions. Reproducible results.</span></footer>
+</main>
