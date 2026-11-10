@@ -19,9 +19,10 @@ Undo/redo retains up to 100 sketch snapshots in memory. Save/Restore keeps one n
 | ARC | XY center, radius, CCW angles | Numeric properties |
 | LWPOLYLINE | Straight vertices, closed flag | Numeric vertices |
 | Bulged or variable-width polylines | Omitted with report | Unsupported |
-| TEXT, MTEXT, DIMENSION, INSERT, other entities | Omitted with report | Unsupported |
+| DIMENSION | Supported linear/aligned/radius/diameter/two-line angular; see annotation guide | Linked annotation properties |
+| TEXT, MTEXT, INSERT, other entities | Omitted with report | Unsupported |
 
-Unsupported geometry, non-XY entities, annotations and appearance are not preserved. Original files remain with the user. Export contains the supported native sketch only, not a lossless original-document round trip. Layers and supported units are regenerated; per-entity styles are not preserved. Arc display is sampled, while export retains analytic center/radius/angles.
+Unsupported geometry, non-XY entities, annotation types and appearance are not preserved. Original files remain with the user. Export contains the supported native sketch only, not a lossless original-document round trip. Layers and supported units are regenerated; per-entity styles are not preserved. Arc display is sampled, while export retains analytic center/radius/angles.
 
 ## API
 
@@ -35,3 +36,7 @@ Import streams are limited to 5 MB, 10,000 supported entities, and a 15-second w
 The application requires its Python API. The existing Docker/nginx deployment serves UI and proxies `/api`; a static frontend deployment alone cannot provide DXF or tolerance services. Sites Workers hosting cannot run this FastAPI/ezdxf backend, so no incomplete static Site was published. Public hosting still requires a container/server target and HTTPS reverse proxy. Compose currently binds localhost deliberately.
 
 Rotation, trim, general polyline drawing, constraints, topology validation, durable project/revision persistence, 3D CAD, agents and CFD remain later work. Browser visual/interaction QA has not been performed in this environment.
+
+## Engineering annotations
+
+The editor now includes automatic and manual linked dimensions on the dedicated `ASME Y14.5` layer. See [annotation tools, compatibility and limitations](annotations.md). The layer name is not a compliance claim.

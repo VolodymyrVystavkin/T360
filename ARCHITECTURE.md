@@ -226,6 +226,20 @@ The example is a sketch payload, **not** a complete DXF document. DXF import mus
 - Validate constraints, residuals, degrees of freedom, and non-convergence; do not claim a sketch is fully constrained based only on dimension labels.
 - Preserve unsupported DXF content only if a verified round-trip strategy exists; otherwise report loss before save/export.
 
+### 6.5 Implemented annotation subset (2026-11-10)
+
+See [ADR-001](ADR.md) and the [annotation guide](docs/annotations.md). The current implementation lives in `frontend/src/app/dxf/` and `backend/app/dxf/`, preserving the existing Angular/Konva/FastAPI/ezdxf stack rather than creating the proposed directory tree prematurely.
+
+The native schema now has separate `entities` and `annotations`, explicit deduplicated `layers`, and persistent `hidden_layers`. Every drawing includes `Geometry` and `ASME Y14.5`. The latter is a dedicated annotation layer, not a claim of ASME certification. Legacy browser sketches receive default empty annotation state during load.
+
+Annotations have stable IDs, a restricted type, geometry references, derived nominal measurements, explicit units/precision/style, placement and collision state, creation mode, optional asymmetric tolerance and separate text override, plus revision/update metadata. Deterministic TypeScript calculations synchronize values and flag invalid or orphan references; manual positions remain fixed. Geometry and annotations share snapshot undo/redo and browser save/restore. This is implemented local persistence; the server-backed revision store described above remains proposed.
+
+Auto Dimension handles circles (diameter), arcs (radius), lines (horizontal, vertical or aligned), closed-profile bounding extents and isolated axis-aligned four-line rectangles. Manual tools add radius, diameter, projected/aligned and two-line angular dimensions. Parallel/coincident/zero-length angular pairs are rejected. Closed polylines are treated as bounding profiles, not assumed rectangles. Dimensions never become geometric constraints.
+
+Konva renders annotation lines, leaders, extensions, arrows and labels without adding geometry entities. Deterministic placement tries increasing offsets and reports approximate label-box collisions. Leaders may still overlap and require manual adjustment. Label and arrow pixel clamps preserve readability without changing model measurements. Layer visibility, manual placement, precision, styles, explicit tolerances and visibly marked overrides are editable.
+
+Python validates measurements independently of client-provided nominal values before DXF export. Existing endpoints exchange real DXF DIMENSION entities with anonymous graphical blocks for linear/aligned/radius/diameter/two-line-angular cases. T360 XDATA preserves validated native geometry/annotation links. External dimensions with unambiguous supported references and unit-scale styles are imported; unsupported or ambiguous definitions/styles receive warnings. Export rejects invalid/orphan annotations and unspecified drawing units. No speculative annotation inference, design tolerances, GD&T, datums or certification are implemented.
+
 ## 7. 2D-to-3D CAD workflow
 
 ```mermaid

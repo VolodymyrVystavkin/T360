@@ -5,19 +5,33 @@ import sys
 import uuid
 from collections import Counter
 import ezdxf
+try:
+    from .dimensions import put_metadata, get_metadata, write_dimensions, read_dimensions
+    from .models import ANNOTATION_LAYER
+except ImportError:
+    from dimensions import put_metadata, get_metadata, write_dimensions, read_dimensions
+    from models import ANNOTATION_LAYER
 
 UNIT_CODES = {'mm': 4, 'cm': 5, 'm': 6, 'in': 1, 'ft': 2}
 
 
 def read_dxf(text):
     doc = ezdxf.read(io.StringIO(text))
-    entities, skipped = [], Counter()
+    entities, skipped, dimensions = [], Counter(), []
+    reserved_layer_geometry = 0
     modelspace = doc.modelspace()
     for source in modelspace:
         if len(entities) >= 10000:
             raise ValueError('Maximum 10,000 editable entities exceeded')
         kind = source.dxftype()
-        item = {'id': str(uuid.uuid4()), 'layer': source.dxf.layer, 'source_handle': source.dxf.handle}
+        if kind == 'DIMENSION':
+            if len(dimensions) >= 2000:
+                raise ValueError('Maximum 2,000 dimensions exceeded')
+            dimensions.append(source)
+            continue
+        metadata = get_metadata(source)
+        native_id = metadata.get('id') if isinstance(metadata, dict) else None
+        item = {'id': native_id or str(uuid.uuid4()), 'layer': source.dxf.layer, 'source_handle': source.dxf.handle}
         if (source.dxf.get('elevation', 0) if source.dxf.is_supported('elevation') else 0) not in (0, None) or tuple(source.dxf.get('extrusion', (0, 0, 1)) if source.dxf.is_supported('extrusion') else (0, 0, 1)) != (0, 0, 1):
             skipped[f'{kind} non-XY plane'] += 1
             continue
@@ -41,19 +55,33 @@ def read_dxf(text):
         else:
             skipped[kind] += 1
             continue
+        if item['layer'] == ANNOTATION_LAYER:
+            item['layer'] = 'Geometry'
+            reserved_layer_geometry += 1
         entities.append(item)
     warnings = [f'{count} × {kind} omitted from editable sketch and export.' for kind, count in skipped.items()]
     if not entities:
         warnings.insert(0, 'This DXF contains no drawing entities in model space.' if len(modelspace) == 0 else 'This DXF contains no supported editable geometry. Review the omitted entity types below.')
-    warnings.append('DXF styles, annotations, blocks and paper space are not preserved. Keep your original file.')
-    return {'schema_version': 1, 'units': next((u for u, code in UNIT_CODES.items() if code == doc.units), None),
-            'entities': entities, 'warnings': warnings}
+    if reserved_layer_geometry:
+        warnings.append(f'{reserved_layer_geometry} geometry entities moved from the reserved annotation layer to Geometry.')
+    warnings.append('Unsupported DXF styles, text, blocks and paper space are not preserved. Keep your original file.')
+    sketch = {'schema_version': 1, 'units': next((u for u, code in UNIT_CODES.items() if code == doc.units), None),
+              'entities': entities, 'warnings': warnings, 'layers': list(dict.fromkeys(['Geometry', ANNOTATION_LAYER, *(layer.dxf.name for layer in doc.layers if not layer.dxf.name.startswith('*'))])),
+              'hidden_layers': [layer.dxf.name for layer in doc.layers if layer.is_off()]}
+    sketch['annotations'] = read_dimensions(doc, sketch, dimensions)
+    return sketch
 
 
 def write_dxf(sketch):
-    doc = ezdxf.new('R2010')
+    doc = ezdxf.new('R2010', setup=True)
     doc.units = UNIT_CODES[sketch['units']]
     model = doc.modelspace()
+    for name in dict.fromkeys(['Geometry', ANNOTATION_LAYER, *sketch.get('layers', [])]):
+        if name not in doc.layers:
+            doc.layers.new(name)
+    for name in sketch.get('hidden_layers', []):
+        if name in doc.layers:
+            doc.layers.get(name).off()
     for entity in sketch['entities']:
         layer = entity['layer']
         if layer not in doc.layers:
@@ -61,10 +89,12 @@ def write_dxf(sketch):
         attrs = {'layer': layer}
         points = entity['points']
         kind = entity['type']
-        if kind == 'line': model.add_line(points[0], points[1], dxfattribs=attrs)
-        elif kind == 'circle': model.add_circle(points[0], entity['radius'], dxfattribs=attrs)
-        elif kind == 'arc': model.add_arc(points[0], entity['radius'], entity['start_angle'], entity['end_angle'], dxfattribs=attrs)
-        elif kind == 'polyline': model.add_lwpolyline(points, close=entity['closed'], dxfattribs=attrs)
+        if kind == 'line': source = model.add_line(points[0], points[1], dxfattribs=attrs)
+        elif kind == 'circle': source = model.add_circle(points[0], entity['radius'], dxfattribs=attrs)
+        elif kind == 'arc': source = model.add_arc(points[0], entity['radius'], entity['start_angle'], entity['end_angle'], dxfattribs=attrs)
+        elif kind == 'polyline': source = model.add_lwpolyline(points, close=entity['closed'], dxfattribs=attrs)
+        put_metadata(doc, source, {'id': entity['id']})
+    write_dimensions(doc, sketch)
     output = io.StringIO()
     doc.write(output)
     return output.getvalue()

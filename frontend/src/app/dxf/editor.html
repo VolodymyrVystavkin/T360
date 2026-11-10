@@ -1,14 +1,353 @@
 <div class="editor">
-  <div class="titlebar"><div><span class="eyebrow">ENGINEERING WORKBENCH / 2D CAD</span><h1>DXF editor<span> / </span><input aria-label="Drawing name" [(ngModel)]="name" maxlength="100"></h1></div><div class="actions"><button (click)="fresh()" [disabled]="busy">New drawing</button><button (click)="demo()" [disabled]="busy">Load example</button><label class="button">Import DXF<input type="file" accept=".dxf" (change)="importFile($event)" [disabled]="busy"></label><button class="primary" (click)="exportDxf()" [disabled]="busy || !sketch.units">Export DXF ↗</button></div></div>
-  <div class="toolbar"><div class="tools">@for (item of ['select','pan','line','rectangle','circle','measure']; track item) {<button [class.active]="tool === item" [attr.aria-pressed]="tool === item" (click)="setTool(item)">{{ item }}</button>}</div><div class="tools"><button (click)="undo()" [disabled]="!history.length">↶ Undo</button><button (click)="redo()" [disabled]="!future.length">↷ Redo</button><button (click)="fit()">Fit drawing</button><button (click)="save()">Save</button><button (click)="restore()">Restore</button></div></div>
-  <div class="workspace"><aside><div class="panel-title">DRAWING SETUP <span>01</span></div><label>Drawing units<select [ngModel]="sketch.units || ''" (ngModelChange)="changeUnits($event)"><option value="">Choose units…</option>@for (unit of ['mm','cm','m','in','ft']; track unit) {<option [value]="unit">{{unit}}</option>}</select></label><p class="hint">Coordinates stay unchanged when assigning units.</p><label class="check"><input type="checkbox" [(ngModel)]="snap"> Snap to 1 unit</label><label class="check"><input type="checkbox" [(ngModel)]="grid" (change)="render()"> Show grid</label>
-    <div class="panel-title section">LAYERS <span>{{layers.length}}</span></div><label>Active layer<select [(ngModel)]="activeLayer">@for(layer of layers; track layer){<option>{{layer}}</option>}</select></label>@for(layer of layers; track layer){<button class="layer" (click)="toggleLayer(layer)" [attr.aria-pressed]="!hidden.has(layer)"><i [class.off]="hidden.has(layer)"></i>{{layer}}<span>{{hidden.has(layer)?'Hidden':'Visible'}}</span></button>}<div class="add-layer"><input aria-label="New layer name" placeholder="New layer" [(ngModel)]="newLayer" maxlength="100"><button (click)="addLayer()" aria-label="Add layer">+</button></div><div class="note"><strong>Geometry you can edit</strong><p>Lines, circles, arcs and straight polylines. Draw rectangles as closed profiles.</p><p>Scroll to zoom · Pan tool to move · Esc to select</p></div>
-  </aside><div class="viewport"><div class="canvas-label"><span>XY PLANE</span><span>{{sketch.entities.length}} ENTITIES</span></div><div #canvas class="canvas" role="application" aria-label="DXF drawing canvas. Choose a drawing tool and click two points. Use properties for numeric editing."></div><div class="canvas-bottom"><span>X {{cursor[0].toFixed(2)}} &nbsp; Y {{cursor[1].toFixed(2)}}</span><span>{{sketch.units || 'UNITS REQUIRED'}} · {{zoom.toFixed(2)}} px/unit</span></div></div>
-  <aside class="properties"><div class="panel-title">PROPERTIES <span>02</span></div>@if(current; as item){<div class="entity-type">{{item.type}}</div><p class="hint">{{item.id.slice(0,8)}}</p><label>Layer<select [ngModel]="item.layer" (ngModelChange)="property('layer',$event)">@for(layer of layers; track layer){<option>{{layer}}</option>}</select></label>@for(point of item.points; track $index; let i=$index){<div class="point-title">{{item.type === 'circle' || item.type === 'arc' ? 'Center' : 'Point ' + (i+1)}}</div><div class="coordinate">@for(axis of [0,1]; track axis){<label>{{axis === 0 ? 'X' : 'Y'}}<input type="number" step="any" [value]="point[axis]" (change)="property('point',$any($event.target).value,i,axis)"></label>}</div>}
-  @if(item.type === 'circle' || item.type === 'arc'){<label>Radius<input type="number" min="0.000001" step="any" [value]="item.radius" (change)="property('radius',$any($event.target).value)"></label>}
-  @if(item.type === 'arc'){@for(field of ['start_angle','end_angle'];track field){<label>{{field}} (degrees)<input type="number" min="-360" max="360" [value]="$any(item)[field]" (change)="property(field,$any($event.target).value)"></label>}}
-  @if(item.closed){<p class="hint">Closed profile · topology not validated</p>}<button class="delete" (click)="remove()">Delete entity</button>
-  }@else{<div class="selection-empty"><span>⌖</span><h3>Select an entity</h3><p>Click geometry with the select tool to inspect and edit exact coordinates.</p></div>}
-  @if(sketch.warnings.length){<div class="warnings"><strong>Interchange report</strong>@for(warning of sketch.warnings;track $index){<p>{{warning}}</p>}</div>}<div class="note"><strong>Local workspace</strong><p>Save keeps one sketch in this browser. DXF export includes supported geometry and layers. Revision history stays in memory.</p></div></aside></div>
-  <div class="status" role="status"><i></i>{{message}}<span>{{busy ? 'PROCESSING' : '2D SKETCH'}}</span></div>
+  <div class="titlebar">
+    <div>
+      <span class="eyebrow">ENGINEERING WORKBENCH / 2D CAD</span>
+      <h1>
+        DXF editor<span> / </span
+        ><input aria-label="Drawing name" [(ngModel)]="name" maxlength="100" />
+      </h1>
+    </div>
+    <div class="actions">
+      <button (click)="fresh()" [disabled]="busy">New drawing</button
+      ><button (click)="demo()" [disabled]="busy">Load example</button
+      ><label class="button"
+        >Import DXF<input
+          type="file"
+          accept=".dxf"
+          (change)="importFile($event)"
+          [disabled]="busy" /></label
+      ><button class="primary" (click)="exportDxf()" [disabled]="busy || !sketch.units">
+        Export DXF ↗
+      </button>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="tools">
+      @for (item of ['select', 'pan', 'line', 'rectangle', 'circle', 'measure']; track item) {
+        <button
+          [class.active]="tool === item"
+          [attr.aria-pressed]="tool === item"
+          (click)="setTool(item)"
+        >
+          {{ item }}
+        </button>
+      }
+    </div>
+    <div class="tools">
+      <button (click)="undo()" [disabled]="!history.length">↶ Undo</button
+      ><button (click)="redo()" [disabled]="!future.length">↷ Redo</button
+      ><button (click)="fit()">Fit drawing</button><button (click)="save()">Save</button
+      ><button (click)="restore()">Restore</button>
+    </div>
+  </div>
+  <div class="annotation-toolbar" aria-label="Dimension tools">
+    <button (click)="autoDimensions()" [disabled]="busy">Auto Dimension · All</button>
+    <button (click)="autoDimensions(true)" [disabled]="busy || !selectionIds.length">
+      Auto · Selected ({{ selectionIds.length }})
+    </button>
+    @for (
+      action of [
+        ['dimension', 'Dimension'],
+        ['diameter', 'Diameter'],
+        ['radius', 'Radius'],
+        ['angular', 'Angular Dimension'],
+      ];
+      track action[0]
+    ) {
+      <button
+        [class.active]="tool === action[0]"
+        [attr.aria-pressed]="tool === action[0]"
+        (click)="setTool(action[0])"
+      >
+        {{ action[1] }}
+      </button>
+    }
+    <button (click)="settingsOpen = !settingsOpen" [attr.aria-expanded]="settingsOpen">
+      Annotation Settings
+    </button>
+  </div>
+  @if (settingsOpen) {
+    <div class="annotation-settings">
+      <strong>Defaults for new annotations</strong>
+      <label
+        >Precision<input type="number" min="0" max="8" step="1" [(ngModel)]="annotationPrecision"
+      /></label>
+      <label
+        >Text height (model units)<input
+          type="number"
+          min="0.001"
+          max="1000000"
+          [(ngModel)]="annotationStyle.text_height"
+      /></label>
+      <label
+        >Arrow size<input
+          type="number"
+          min="0.001"
+          max="1000000"
+          [(ngModel)]="annotationStyle.arrow_size"
+      /></label>
+      <label
+        >Offset<input type="number" min="0.001" max="1000000" [(ngModel)]="annotationStyle.offset"
+      /></label>
+      <label>Color<input type="color" [(ngModel)]="annotationStyle.color" /></label>
+      <label class="check"
+        ><input type="checkbox" [(ngModel)]="annotationStyle.show_units" /> Show units</label
+      >
+      <p class="hint">
+        ASME Y14.5 is a layer name. This drafting subset is not certified standards compliance. No
+        GD&amp;T or tolerances are inferred.
+      </p>
+    </div>
+  }
+  <div class="workspace">
+    <aside>
+      <div class="panel-title">DRAWING SETUP <span>01</span></div>
+      <label
+        >Reassign drawing units<select
+          [ngModel]="sketch.units || ''"
+          (ngModelChange)="changeUnits($event)"
+        >
+          <option value="">Choose units…</option>
+          @for (unit of ['mm', 'cm', 'm', 'in', 'ft']; track unit) {
+            <option [value]="unit">{{ unit }}</option>
+          }
+        </select></label
+      >
+      <p class="hint">Coordinates stay unchanged when assigning units.</p>
+      <label class="check"><input type="checkbox" [(ngModel)]="snap" /> Snap to 1 unit</label
+      ><label class="check"
+        ><input type="checkbox" [(ngModel)]="grid" (change)="render()" /> Show grid</label
+      >
+      <div class="panel-title section">
+        LAYERS <span>{{ layers.length }}</span>
+      </div>
+      <label
+        >Active layer<select [(ngModel)]="activeLayer">
+          @for (layer of geometryLayers; track layer) {
+            <option>{{ layer }}</option>
+          }
+        </select></label
+      >
+      @for (layer of layers; track layer) {
+        <button class="layer" (click)="toggleLayer(layer)" [attr.aria-pressed]="!hidden.has(layer)">
+          <i [class.off]="hidden.has(layer)"></i>{{ layer
+          }}<span>{{ hidden.has(layer) ? 'Hidden' : 'Visible' }}</span>
+        </button>
+      }
+      <p class="hint">
+        ASME Y14.5: annotations only; not a compliance claim. Shift-click geometry to select
+        multiple entities.
+      </p>
+      <div class="add-layer">
+        <input
+          aria-label="New layer name"
+          placeholder="New layer"
+          [(ngModel)]="newLayer"
+          maxlength="100"
+        /><button (click)="addLayer()" aria-label="Add layer">+</button>
+      </div>
+      <div class="note">
+        <strong>Geometry you can edit</strong>
+        <p>Lines, circles, arcs and straight polylines. Draw rectangles as closed profiles.</p>
+        <p>Scroll to zoom · Pan tool to move · Esc to select</p>
+      </div>
+    </aside>
+    <div class="viewport">
+      <div class="canvas-label">
+        <span>XY PLANE</span><span>{{ sketch.entities.length }} ENTITIES</span>
+      </div>
+      <div
+        #canvas
+        class="canvas"
+        role="application"
+        aria-label="DXF drawing canvas. Choose a drawing tool and click two points. Use properties for numeric editing."
+      ></div>
+      <div class="canvas-bottom">
+        <span>X {{ cursor[0].toFixed(2) }} &nbsp; Y {{ cursor[1].toFixed(2) }}</span
+        ><span>{{ sketch.units || 'UNITS REQUIRED' }} · {{ zoom.toFixed(2) }} px/unit</span>
+      </div>
+    </div>
+    <aside class="properties">
+      <div class="panel-title">PROPERTIES <span>02</span></div>
+      @if (currentAnnotation; as a) {
+        <div class="entity-type">{{ a.type }} dimension</div>
+        <p class="hint">{{ a.id.slice(0, 8) }} · {{ a.mode }} · revision {{ a.revision }}</p>
+        <label
+          >Dimension type<select [ngModel]="a.type" (ngModelChange)="changeDimensionType($event)">
+            @for (kind of dimensionTypes; track kind) {
+              <option>{{ kind }}</option>
+            }
+          </select></label
+        >
+        <p class="dimension-value">{{ annotationText(a) }}</p>
+        <p>
+          Measured: {{ a.status === 'valid' ? a.measured_value : 'unavailable' }}
+          {{ a.units || '(units required)' }}
+        </p>
+        <p class="hint">References: {{ a.refs.join(', ') }}</p>
+        @if (a.status !== 'valid') {
+          <p class="warnings">
+            {{ a.status }} reference. This dimension cannot be exported until resolved or deleted.
+          </p>
+        }
+        @if (a.text_override !== null) {
+          <p class="warnings">
+            Text override. The measured value remains authoritative and is shown in brackets.
+          </p>
+        }
+        @if (a.placement.collision) {
+          <p class="warnings">Unresolved label collision. Move this annotation manually.</p>
+        }
+        <div class="coordinate">
+          @for (axis of ['x', 'y']; track axis) {
+            <label
+              >Label {{ axis
+              }}<input
+                type="number"
+                step="any"
+                [value]="a.placement.position[axis === 'x' ? 0 : 1]"
+                (change)="annotationProperty(axis, $any($event.target).value)"
+            /></label>
+          }
+        </div>
+        <button (click)="resetPlacement()" [disabled]="a.status !== 'valid'">
+          Reset automatic placement
+        </button>
+        @for (field of ['precision', 'text_height', 'arrow_size', 'offset']; track field) {
+          <label
+            >{{ field
+            }}<input
+              type="number"
+              [min]="field === 'precision' ? 0 : 0.001"
+              [max]="field === 'precision' ? 8 : 1000000"
+              [step]="field === 'precision' ? 1 : 'any'"
+              [value]="field === 'precision' ? a.precision : $any(a.style)[field]"
+              (change)="annotationProperty(field, $any($event.target).value)"
+          /></label>
+        }
+        <label
+          >Annotation color<input
+            type="color"
+            [value]="a.style.color"
+            (change)="annotationProperty('color', $any($event.target).value)"
+        /></label>
+        <label class="check"
+          ><input
+            type="checkbox"
+            [checked]="a.style.show_units"
+            (change)="
+              annotationProperty('show_units', $any($event.target).checked ? 'true' : 'false')
+            "
+          />
+          Show units</label
+        >
+        <div class="coordinate">
+          <label
+            >+ tolerance<input
+              type="number"
+              min="0"
+              step="any"
+              [value]="a.tolerance?.plus ?? ''"
+              (change)="annotationProperty('plus', $any($event.target).value)" /></label
+          ><label
+            >− tolerance<input
+              type="number"
+              min="0"
+              step="any"
+              [value]="a.tolerance?.minus ?? ''"
+              (change)="annotationProperty('minus', $any($event.target).value)"
+          /></label>
+        </div>
+        <button (click)="clearTolerance()" [disabled]="!a.tolerance">Remove tolerance</button>
+        <label
+          >Text override (measured value retained)<input
+            maxlength="200"
+            [value]="a.text_override || ''"
+            (change)="annotationProperty('text_override', $any($event.target).value)"
+        /></label>
+        <button class="delete" (click)="remove()">Delete annotation</button>
+        <p class="hint">
+          Drag the label to reposition. Nominal values come from geometry. Layout checks approximate
+          label collisions; leaders and extension lines may overlap.
+        </p>
+      } @else if (current; as item) {
+        <div class="entity-type">{{ item.type }}</div>
+        <p class="hint">{{ item.id.slice(0, 8) }}</p>
+        <label
+          >Layer<select [ngModel]="item.layer" (ngModelChange)="property('layer', $event)">
+            @for (layer of geometryLayers; track layer) {
+              <option>{{ layer }}</option>
+            }
+          </select></label
+        >
+        @for (point of item.points; track $index; let i = $index) {
+          <div class="point-title">
+            {{ item.type === 'circle' || item.type === 'arc' ? 'Center' : 'Point ' + (i + 1) }}
+          </div>
+          <div class="coordinate">
+            @for (axis of [0, 1]; track axis) {
+              <label
+                >{{ axis === 0 ? 'X' : 'Y'
+                }}<input
+                  type="number"
+                  step="any"
+                  [value]="point[axis]"
+                  (change)="property('point', $any($event.target).value, i, axis)"
+              /></label>
+            }
+          </div>
+        }
+        @if (item.type === 'circle' || item.type === 'arc') {
+          <label
+            >Radius<input
+              type="number"
+              min="0.000001"
+              step="any"
+              [value]="item.radius"
+              (change)="property('radius', $any($event.target).value)"
+          /></label>
+        }
+        @if (item.type === 'arc') {
+          @for (field of ['start_angle', 'end_angle']; track field) {
+            <label
+              >{{ field }} (degrees)<input
+                type="number"
+                min="-360"
+                max="360"
+                [value]="$any(item)[field]"
+                (change)="property(field, $any($event.target).value)"
+            /></label>
+          }
+        }
+        @if (item.closed) {
+          <p class="hint">Closed profile · topology not validated</p>
+        }
+        <button class="delete" (click)="remove()">Delete entity</button>
+      } @else {
+        <div class="selection-empty">
+          <span>⌖</span>
+          <h3>Select an entity</h3>
+          <p>Click geometry with the select tool to inspect and edit exact coordinates.</p>
+        </div>
+      }
+      @if (sketch.warnings.length) {
+        <div class="warnings">
+          <strong>Interchange report</strong>
+          @for (warning of sketch.warnings; track $index) {
+            <p>{{ warning }}</p>
+          }
+        </div>
+      }
+      <div class="note">
+        <strong>Local workspace</strong>
+        <p>
+          Save keeps one sketch in this browser. DXF export includes supported geometry, layers and
+          dimensions. Revision history stays in memory.
+        </p>
+      </div>
+    </aside>
+  </div>
+  <div class="status" role="status">
+    <i></i>{{ message }}<span>{{ busy ? 'PROCESSING' : '2D SKETCH' }}</span>
+  </div>
 </div>

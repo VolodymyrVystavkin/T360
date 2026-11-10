@@ -105,3 +105,9 @@ Verified a clean frontend `npm ci`, 4 Angular/Vitest tests, 12 Python tests, the
 Open **http://localhost:4200/#dxf** (development) or **http://localhost:8080/#dxf** (Docker) for the new Angular/Konva editor. Import/export supported DXF geometry, draw lines/circles/rectangles, edit numeric properties, measure, manage layers, undo/redo, and save a sketch in your browser. The tolerance workspace remains available from the navigation.
 
 Install the updated backend requirements and run `npm ci` in `frontend`, or rebuild with `docker compose up --build`. See [DXF support, API and deployment limits](docs/dxf-editor.md). Public hosting has not been configured; the complete app needs both the UI and Python API.
+
+## Automatic engineering annotations
+
+In the DXF editor, click **Auto Dimension · All**, or select geometry (Shift-click for multiple entities) and use **Auto · Selected**. Manual **Dimension**, **Diameter**, **Radius**, and **Angular Dimension** tools are also available. Select a dimension to edit placement, style, precision, explicit tolerance or a visibly marked text override. Geometry edits update measurements; undo/redo and browser save/restore retain annotations.
+
+The dedicated **ASME Y14.5** layer can be toggled independently. Its name is not a compliance claim. Export writes real DXF dimensions; unsupported import definitions/styles are reported. See [annotation instructions and limitations](docs/annotations.md) and [ADR-001](ADR.md). Rebuild containers with `docker compose up --build -d` to apply the updated frontend and backend.
