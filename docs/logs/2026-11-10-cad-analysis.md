@@ -28,3 +28,7 @@ Follow-up verification: **83 backend tests passed**, **35 frontend tests passed*
 ## Follow-up: Geometry layer only
 
 Restricted extraction and calculation sources to the exact `Geometry` layer at the user's request. Linked dimensions must reference only that layer; mixed-layer references are excluded. Cached non-Geometry rows are hidden and excluded from automatic/manual selections. Other editor layers are retained. Added regression tests for layer changes, mixed references and cached selections.
+
+## Follow-up: CAD parameters and visualization
+
+Added CAD/manual analysis tabs. The CAD tab groups feature selection, its own analysis parameters, calculation and result charts, keeping manual parameters separate. Added numeric cards, common-scale interval ranges against specifications, nominal marker and opt-in Monte Carlo histogram/yield. Regression tests cover default CAD tab selection, parameter/result co-location, preservation on tab switching and worst-case-only display without statistical output.

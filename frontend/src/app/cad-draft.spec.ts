@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { CadDraftService, CadExtraction } from './cad-draft.service';
 import { DxfEditor } from './dxf/editor';
+import { App } from './app';
 import { CadFeatures } from './cad-features';
 import { emptySketch, newEntity } from './dxf/model';
 
@@ -16,9 +17,10 @@ const extraction = (): CadExtraction => ({ drawing_id: 'drawing-1', revision: 1,
 describe('Persistent CAD draft integration', () => {
   let service: CadDraftService;
   let http: HttpTestingController;
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
-    TestBed.configureTestingModule({ imports: [DxfEditor, CadFeatures], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [App, DxfEditor, CadFeatures], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    await TestBed.compileComponents();
     service = TestBed.inject(CadDraftService); http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => { http.verify(); TestBed.resetTestingModule(); localStorage.clear(); });
@@ -154,6 +156,48 @@ describe('Persistent CAD draft integration', () => {
     expect(service.draft()!.rows[1].selected).toBe(false);
     service.merge({...data,features:[data.features[0]]});
     expect(service.draft()!.rows).toHaveLength(1);
+  });
+
+  it('shows CAD parameters and result charts together and preserves them across analysis tabs', async () => {
+    service.merge(extraction());
+    const d = service.draft()!;
+    d.calculation = {drawing_id:'drawing-1',revision:1,units:'mm',relationship:'Stack = (1 × Line length)',sources:[],result:{
+      nominal:20,worst_case:{lower:19.8,upper:20.2,half_width:.2},
+      rss:{lower:19.8,upper:20.2,half_width:.2},
+      monte_carlo:{mean:20,standard_deviation:.1,minimum:19.8,maximum:20.2,p025:19.81,p975:20.19,yield_percent:95,
+        counts:[1,4,1],bin_edges:[19.8,19.9,20.1,20.2],samples:100,seed:42},insights:[]}};
+    const s = emptySketch(); s.drawing_id = 'drawing-1'; service.capture(s,'Drawing');
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('#cad-tab')?.getAttribute('aria-selected')).toBe('true');
+    expect(element.querySelector('#manual-analysis-panel')).toBeNull();
+    expect(element.textContent).toContain('Set analysis parameters');
+    expect(element.textContent).toContain('Tolerance ranges');
+    expect(element.querySelectorAll('.cad-histogram > div')).toHaveLength(3);
+    expect(element.querySelector('.cad-metrics')?.textContent).toContain('20.000');
+    (element.querySelector('#manual-tab') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(element.querySelector('#manual-analysis-panel')).not.toBeNull();
+    expect(element.querySelector('cad-features')).toBeNull();
+    (element.querySelector('#cad-tab') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(element.querySelector('.cad-histogram')).not.toBeNull();
+    expect(service.draft()!.calculation!.result.nominal).toBe(20);
+  });
+
+  it('shows worst-case visualization without fabricated statistical results', async () => {
+    service.merge(extraction());
+    const s = emptySketch(); s.drawing_id = 'drawing-1'; service.capture(s,'Drawing');
+    service.draft()!.calculation = {drawing_id:'drawing-1',revision:1,units:'mm',relationship:'Stack',sources:[],result:{
+      nominal:0,worst_case:{lower:0,upper:0,half_width:0},rss:null,monte_carlo:null,insights:[]}};
+    const fixture = TestBed.createComponent(CadFeatures); await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.textContent).toContain('Tolerance ranges');
+    expect(element.querySelector('.cad-histogram')).toBeNull();
+    expect(element.querySelector('.interval-band.rss')).toBeNull();
+    expect(element.textContent).toContain('Enable the independent uniform statistical assumptions');
+    expect(Number.isFinite(fixture.componentInstance.chartPosition(service.draft()!.calculation!,0))).toBe(true);
   });
 
   it('removes a feature from the analysis without deleting drawing geometry', () => {

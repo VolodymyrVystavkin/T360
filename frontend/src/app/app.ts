@@ -1,4 +1,5 @@
 import { Component, HostListener, inject, signal } from '@angular/core';
+import { CadDraftService } from './cad-draft.service';
 import { CadFeatures } from './cad-features';
 import { DxfEditor } from './dxf/editor';
 import { DecimalPipe } from '@angular/common';
@@ -14,6 +15,11 @@ import { AnalysisInput, AnalysisResult, AnalysisService } from './analysis.servi
   templateUrl: './app.html', styleUrl: './app.scss',
 })
 export class App {
+  cad = inject(CadDraftService);
+  analysisTab: 'cad' | 'manual' | null = null;
+  get activeAnalysisTab() { return this.analysisTab || (this.cad.draft() ? 'cad' : 'manual'); }
+  selectAnalysisTab(tab: 'cad' | 'manual') { this.analysisTab = tab; document.getElementById(tab + '-tab')?.focus(); }
+  openCadAnalysis() { this.analysisTab = 'cad'; this.switchWorkspace('tolerance'); }
   workspace = typeof location !== 'undefined' && location.hash === '#dxf' ? 'dxf' : 'tolerance';
   @HostListener('window:hashchange') onHashChange() { this.workspace = location.hash === '#dxf' ? 'dxf' : 'tolerance'; }
   switchWorkspace(value: string) { this.workspace = value; location.hash = value; }

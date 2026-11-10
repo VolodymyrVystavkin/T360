@@ -1,11 +1,14 @@
 import { Component, DestroyRef, inject, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe, JsonPipe } from '@angular/common';
 import { CadDraftService, CadRow, CadResult } from './cad-draft.service';
 
 @Component({
-  selector: 'cad-features', imports: [FormsModule, DecimalPipe, JsonPipe],
+  selector: 'cad-features', imports: [FormsModule, DecimalPipe, JsonPipe, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './cad-features.html', styleUrl: './cad-features.scss',
 })
 export class CadFeatures {
@@ -75,6 +78,17 @@ export class CadFeatures {
     if (detail && typeof detail === 'object' && 'message' in detail) return String(detail.message);
     return typeof detail === 'string' ? detail : 'Validation failed or service unavailable. Check geometry, units and numeric inputs.';
   }
+  chartPosition(calculation: CadResult, value: number) {
+    const d = this.cad.draft()!;
+    const r = calculation.result;
+    const values = [d.lower, d.upper, r.nominal, r.worst_case.lower, r.worst_case.upper];
+    if (r.rss) values.push(r.rss.lower, r.rss.upper);
+    if (r.monte_carlo) values.push(r.monte_carlo.p025, r.monte_carlo.p975);
+    const low = Math.min(...values), high = Math.max(...values);
+    const span = high-low || 1;
+    return 6 + 88 * (value-low)/span;
+  }
+  barHeight(count: number, counts: number[]) { return 100 * count / Math.max(1, ...counts); }
   export() {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ draft: this.cad.draft(), calculation: this.result() }, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a'); a.href = url; a.download = 'cad-tolerance-analysis.json'; a.click(); URL.revokeObjectURL(url);

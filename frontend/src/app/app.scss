@@ -1,8 +1,8 @@
 :host { display: block; }
-header { height: 82px; padding: 0 5%; background: #102b3a; color: white; display: flex; align-items: center; justify-content: space-between; }
+header { min-height: 82px; flex-wrap:wrap; gap:12px; padding: 0 5%; background: #102b3a; color: white; display: flex; align-items: center; justify-content: space-between; }
 .brand { color: white; text-decoration: none; letter-spacing: 2px; font-size: 16px; display: flex; gap: 12px; align-items: center; }
 .brand strong { color: #55d7c5; } .logo { padding: 10px; border: 1px solid #54727e; letter-spacing: -2px; font-size: 22px; }
-.workspace { color: #b5c8d1; font-size: 11px; letter-spacing: 2px; }
+
 main { max-width: 1260px; margin: auto; padding: 48px 32px 20px; }
 .intro { display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; }
 .eyebrow { font-size: 10px; letter-spacing: 2px; color: #276b70; font-weight: bold; } h1 { font-size: clamp(32px, 4vw, 48px); letter-spacing: -2px; margin: 12px 0; } h1 span { color: #078779; }
@@ -22,3 +22,8 @@ footer { border-top: 1px solid #d7e1e5; margin-top: 25px; padding: 22px 0; displ
 @media (max-width: 540px) { main { padding: 28px 16px; } .panel { padding: 16px; } .section-heading { align-items: start; } .section-heading > .muted { display: none; } .fields { grid-template-columns: 1fr; gap: 0; } .run-row { flex-direction: column; align-items: stretch; } .metrics { gap: 8px; } .metrics article { padding: 16px; } .metrics strong { font-size: 23px; } footer { gap: 20px; line-height: 1.7; } }
 
 .workspace-nav {display:flex;gap:20px;padding:0 5%;background:white;border-bottom:1px solid #d9e4e6}.workspace-nav button{border:0;border-bottom:3px solid transparent;background:transparent;color:#607984;padding:18px 4px;cursor:pointer;font:inherit;font-size:13px}.workspace-nav button.chosen{border-bottom-color:#178779;color:#13695f}
+
+.analysis-tabs { display:flex; flex-wrap:wrap; gap:8px; }
+.analysis-tabs button { padding:14px 20px; border:0; border-bottom:3px solid transparent; background:transparent; color:#b5c8d1; font:inherit; font-size:13px; cursor:pointer; }
+.analysis-tabs button[aria-selected="true"] { color:#55d7c5; border-bottom-color:#55d7c5; }
+.analysis-tabs button:focus-visible { outline:2px solid #55d7c5; outline-offset:2px; }

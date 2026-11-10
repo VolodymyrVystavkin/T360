@@ -1,9 +1,21 @@
-<header><a class="brand" href="/" aria-label="T360 home"><span class="logo">T360</span> Tolerance <strong>360</strong></a><span class="workspace">ANALYSIS WORKSPACE / 01</span></header>
+<header><a class="brand" href="/" aria-label="T360 home"><span class="logo">T360</span> Tolerance <strong>360</strong></a>@if (workspace === 'tolerance') {
+  <div class="analysis-tabs" role="tablist" aria-label="Analysis source">
+    <button id="cad-tab" role="tab" [attr.aria-selected]="activeAnalysisTab === 'cad'" [attr.tabindex]="activeAnalysisTab === 'cad' ? 0 : -1" aria-controls="cad-analysis-panel" (keydown.arrowright)="selectAnalysisTab('manual'); $event.preventDefault()" (keydown.arrowleft)="selectAnalysisTab('manual'); $event.preventDefault()" (click)="analysisTab = 'cad'">Imported CAD Features</button>
+    <button id="manual-tab" role="tab" [attr.aria-selected]="activeAnalysisTab === 'manual'" [attr.tabindex]="activeAnalysisTab === 'manual' ? 0 : -1" aria-controls="manual-analysis-panel" (keydown.arrowright)="selectAnalysisTab('cad'); $event.preventDefault()" (keydown.arrowleft)="selectAnalysisTab('cad'); $event.preventDefault()" (click)="analysisTab = 'manual'">Manual stack</button>
+  </div>
+}
+</header>
 <nav class="workspace-nav"><button [class.chosen]="workspace === 'dxf'" (click)="switchWorkspace('dxf')">2D DXF editor</button><button [class.chosen]="workspace === 'tolerance'" (click)="switchWorkspace('tolerance')">Tolerance analysis</button></nav>
-@if (workspace === 'dxf') { @defer (on immediate) { <dxf-editor (analyze)="switchWorkspace('tolerance')" /> } @placeholder { <p>Loading DXF editor…</p> } } @else {
+@if (workspace === 'dxf') { @defer (on immediate) { <dxf-editor (analyze)="openCadAnalysis()" /> } @placeholder { <p>Loading DXF editor…</p> } } @else {
 <main>
   <div class="intro"><div><p class="eyebrow">PRECISION STARTS WITH UNDERSTANDING</p><h1>Tolerance analysis<span>.</span></h1><p class="subtitle">Explore your stack. Understand variation. Build with confidence.</p></div><span class="badge">DIMENSIONAL STACK · V1.0</span></div>
-  <cad-features (openEditor)="switchWorkspace('dxf')" />
+  @if (activeAnalysisTab === 'cad') {
+    <div id="cad-analysis-panel" role="tabpanel" aria-labelledby="cad-tab">
+      @if (cad.draft()) { <cad-features (openEditor)="switchWorkspace('dxf')" /> }
+      @else { <section class="panel"><h2>Imported CAD Features</h2><p>Open a drawing in the DXF Editor and click Analyze Tolerances to select features, set analysis parameters and visualize results here.</p><button mat-flat-button (click)="switchWorkspace('dxf')">Open DXF Editor</button></section> }
+    </div>
+  } @else {
+  <div id="manual-analysis-panel" role="tabpanel" aria-labelledby="manual-tab">
   <form #form="ngForm" (ngSubmit)="run(form)" (input)="invalidate()">
     <fieldset [disabled]="busy()">
       <section class="panel">
@@ -48,6 +60,8 @@
       <article class="panel insights"><p class="eyebrow">ENGINEERING INSIGHTS</p><h3>What your stack tells you</h3>@for (insight of r.insights; track $index) { <p class="insight">{{ insight }}</p> }<small>Deterministic engineering guidance. No language model or external AI service is used.</small></article></div>
     } @else { @if (!busy()) { <div class="empty"><span>T360</span><h3>Your next decision starts here.</h3><p>Define the stack above and run an analysis to compare three views of variation.</p></div> } }
   </section>
+  </div>
+  }
   <footer>T360 <span>Independent components. Explicit assumptions. Reproducible results.</span></footer>
 </main>
 
