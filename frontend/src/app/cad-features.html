@@ -1,0 +1,69 @@
+@if (cad.draft(); as d) {
+<section class="cad-panel" aria-label="Imported CAD Features">
+  <h2>Imported CAD Features</h2>
+  <fieldset [disabled]="busy()">
+  <p>Drawing {{ d.extraction.drawing_id }} · revision {{ d.extraction.revision }} · {{ d.extraction.units || 'UNSPECIFIED UNITS' }}</p>
+  <p>Only figures on the Geometry layer are used. Dimensions are included only when all referenced figures are on Geometry.</p>
+  <p>Choose a measurement row for each feature. Radius, diameter, perimeter and projected dimensions have different engineering meanings. Geometry alone supplies no manufacturing tolerance. Tolerance fields use the drawing units.</p>
+  @if (cad.stale()) { <p role="alert">Drawing revision changed. Refresh and review before calculating.</p> }
+  @if (!d.extraction.units) { <p role="alert">Assign units explicitly in the editor before calculation. Coordinates will retain their numeric values.</p> }
+  <button type="button" (click)="refresh()" [disabled]="busy()">Refresh from current drawing</button>
+  <button type="button" (click)="openEditor.emit()">Open DXF Editor</button>
+  <details><summary>Extraction warnings</summary>@for (warning of d.extraction.warnings; track $index) { <p>{{ warning }}</p> }</details>
+  <div class="scroll"><table><thead><tr><th>Select</th><th>Entity ID / type / layer</th><th>Feature name / measurement type</th><th>Nominal / units</th><th>Upper +</th><th>Lower −</th><th>Coefficient</th><th>Source / validation</th><th>Actions</th></tr></thead><tbody>
+  @for (row of d.rows; track row.feature.id) {
+    @if (!row.removed && cad.isGeometryFeature(row.feature)) {
+    <tr>
+      <td><input type="checkbox" [attr.aria-label]="'Select ' + row.name" [(ngModel)]="row.selected" (ngModelChange)="changed()" [disabled]="row.feature.status.startsWith('Invalid') || row.feature.units === 'deg'"></td>
+      <td>{{ row.feature.entity_ids.join(', ') }}<br>{{ row.feature.entity_type }} · {{ row.feature.layer }}<br>Handle: {{ row.feature.source_handle || 'native edit' }}</td>
+      <td><input aria-label="Feature name" [(ngModel)]="row.name" maxlength="100" (ngModelChange)="changed()">
+        <span class="measurement-type" [title]="row.feature.measurement">
+          <svg class="measurement-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path [attr.d]="measurementIcon(row.feature.measurement)" /></svg>
+          {{ row.feature.measurement }}
+        </span>
+      </td>
+      <td>{{ row.feature.nominal | number:'1.2-6' }} {{ row.feature.units || '?' }}</td>
+      <td><input aria-label="Upper tolerance" type="number" min="0" step="any" [(ngModel)]="row.plus" (ngModelChange)="row.reviewed = false; changed()" placeholder="Missing"></td>
+      <td><input aria-label="Lower tolerance" type="number" min="0" step="any" [(ngModel)]="row.minus" (ngModelChange)="row.reviewed = false; changed()" placeholder="Missing"></td>
+      <td><input aria-label="Signed coefficient" type="number" step="any" [(ngModel)]="row.coefficient" (ngModelChange)="changed()"></td>
+      <td>{{ row.feature.source === 'dimension' ? 'Explicit drawing dimension' : 'Derived geometry' }}<br>{{ row.feature.status }}
+        @if (row.plus !== row.feature.plus || row.minus !== row.feature.minus) { <br>User-entered tolerance }
+        @if (row.changed) { <br>Changed source: review required }
+        @if (row.feature.displayed_value) { <br>Text override: {{ row.feature.displayed_value }} · measured value retained }
+      </td>
+      <td>@if (row.changed || row.feature.displayed_value) { <label><input type="checkbox" [(ngModel)]="row.reviewed" (ngModelChange)="changed()">Changed source / override reviewed</label> }
+        <button type="button" (click)="source(row)">{{ row.feature.annotation_id ? 'View original annotation' : 'Highlight geometry' }}</button>
+        <button type="button" (click)="row.removed = true; row.selected = false; changed()">Remove from analysis</button></td>
+    </tr>
+    }
+  }
+  </tbody></table></div>
+  <p>The relationship is built automatically from selected measurements and their coefficients. +1 adds a measurement; −1 subtracts it. With no selection, Calculate uses all available features with specified tolerances. This adds the chosen measurements; it does not infer an assembly clearance from geometry.</p>
+  <button type="button" (click)="selectSpecified()">Select all features with tolerances</button>
+  <button type="button" (click)="restoreRows()">Show removed features</button>
+  <div class="parameters">
+    <p aria-live="polite"><strong>Automatic relationship:</strong> {{ cad.relationship() }}</p>
+    <label>Result units<select [(ngModel)]="d.units" (ngModelChange)="changed()">@for (unit of ['mm','cm','m','in','ft']; track unit) { <option [value]="unit">{{ unit }}</option> }</select></label>
+    <label>Lower specification<input type="number" step="any" [(ngModel)]="d.lower" (ngModelChange)="changed()"></label>
+    <label>Upper specification<input type="number" step="any" [(ngModel)]="d.upper" (ngModelChange)="changed()"></label>
+    <label>Samples<input type="number" [(ngModel)]="d.samples" (ngModelChange)="changed()" min="100" max="200000"></label>
+    <label>Seed<input type="number" [(ngModel)]="d.seed" (ngModelChange)="changed()" min="0"></label>
+  </div>
+  <p><label><input type="checkbox" [(ngModel)]="d.statistics" (ngModelChange)="changed()">I assume independent uniform deviations within the entered bounds. Include seeded Monte Carlo and RSS as a tolerance index (not a confidence interval).</label></p>
+
+  <button type="button" (click)="run()" [disabled]="busy() || cad.stale() || !d.extraction.units">{{ busy() ? 'Validating…' : 'Calculate tolerances' }}</button>
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (result(); as calculation) {
+    <div aria-live="polite"><h3>CAD stack result · revision {{ calculation.revision }} · {{ calculation.units }}</h3>
+      <p>{{ calculation.relationship }}</p>
+      <p>Nominal: {{ calculation.result.nominal | number:'1.3-6' }} · Worst-case minimum: {{ calculation.result.worst_case.lower | number:'1.3-6' }} · maximum: {{ calculation.result.worst_case.upper | number:'1.3-6' }}</p>
+      @if (calculation.result.rss; as rss) { <p>RSS tolerance index: {{ rss.lower | number:'1.3-6' }} to {{ rss.upper | number:'1.3-6' }} (centered at the uniform mean)</p> }
+      @if (calculation.result.monte_carlo; as mc) { <p>Monte Carlo: mean {{ mc.mean | number:'1.3-6' }} · central 95% sample interval {{ mc.p025 | number:'1.3-6' }} to {{ mc.p975 | number:'1.3-6' }} · yield {{ mc.yield_percent | number:'1.2-2' }}% · {{ mc.samples }} samples · seed {{ mc.seed }}</p> }
+      <button type="button" (click)="export()">Export result and source trace</button>
+      <details><summary>Calculation trace</summary><pre>{{ calculation | json }}</pre></details>
+    </div>
+  }
+  </fieldset>
+</section>
+}
+@if (cad.storageError()) { <p role="alert">{{ cad.storageError() }}</p> }

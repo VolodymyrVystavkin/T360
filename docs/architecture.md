@@ -15,3 +15,5 @@ The analysis response contains nominal, worst_case and rss objects (lower, upper
 Development uses Angular's `/api` proxy. Containers use nginx as the frontend server and reverse proxy. Static asset fallback supports Angular navigation; API paths always go to FastAPI. CORS is configurable for direct cross-origin API clients.
 
 This is a local engineering tool without authentication, durable storage, rate limiting or a remote AI integration. Add those capabilities before exposing it to shared public traffic.
+
+The CAD bridge adds browser-persisted drafts and stateless typed source-validation endpoints. See [CAD-to-tolerance architecture and API](cad-tolerance-workflow.md). The shared pure engine now lives in `backend/app/tolerance.py`.

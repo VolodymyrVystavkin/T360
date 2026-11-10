@@ -17,10 +17,11 @@ Undo/redo retains up to 100 sketch snapshots in memory. Save/Restore keeps one n
 | LINE | XY plane endpoints | Numeric endpoints |
 | CIRCLE | XY center and radius | Numeric center/radius |
 | ARC | XY center, radius, CCW angles | Numeric properties |
-| LWPOLYLINE | Straight vertices, closed flag | Numeric vertices |
+| LWPOLYLINE / 2D POLYLINE | Straight vertices, closed flag | Numeric vertices |
 | Bulged or variable-width polylines | Omitted with report | Unsupported |
 | DIMENSION | Supported linear/aligned/radius/diameter/two-line angular; see annotation guide | Linked annotation properties |
-| TEXT, MTEXT, INSERT, other entities | Omitted with report | Unsupported |
+| INSERT | Supported XY geometry flattened with transforms; see CAD workflow guide | Numeric geometry |
+| TEXT, MTEXT, other entities | Omitted with report | Unsupported |
 
 Unsupported geometry, non-XY entities, annotation types and appearance are not preserved. Original files remain with the user. Export contains the supported native sketch only, not a lossless original-document round trip. Layers and supported units are regenerated; per-entity styles are not preserved. Arc display is sampled, while export retains analytic center/radius/angles.
 

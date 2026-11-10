@@ -3,3 +3,5 @@ uvicorn==0.38.0
 numpy==2.3.4
 
 ezdxf==1.4.3
+
+pint==0.25.2

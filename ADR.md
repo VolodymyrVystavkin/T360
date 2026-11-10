@@ -28,3 +28,30 @@ Placement tries eight deterministic offsets outside geometry and reports conserv
 Units are explicitly reassigned without coordinate conversion; UI wording discloses the resulting possible physical-size change. Browser storage remains a single local sketch, not server revision persistence. Dimensions in arbitrary styles, paper space, blocks, unmatched external definitions and 3D planes remain unsupported with warnings. External CAD tools may strip XDATA, losing T360 associativity. Browser visual and independent CAD viewer checks are not verified by the automated tests.
 
 Future annotation variants can extend the typed annotation collection and renderer/export dispatch with explicit datum, feature-control-frame and surface-texture schemas, without changing geometry types or automatically assigning design requirements.
+
+## ADR-002 — Browser-persisted CAD analysis drafts and validated source mapping
+
+**Date:** 2026-11-10
+**Status:** Implemented for the requested DXF-to-analysis workflow.
+
+### Context and decision
+
+Both existing workspaces run without a project database. Reuse browser persistence through an application-scoped Angular service rather than introducing a server draft repository. Persist the current native drawing (including unsaved edits), revision, feature mapping, user specifications, approvals and result. Backend extraction/calculation endpoints remain stateless and accept the current snapshot. Existing hash navigation remains in place and browser back/forward updates the workspace.
+
+Add normalized measurement records referencing existing entities/annotations, keeping geometry separate from engineering meaning. Require explicit tolerance bounds, per-feature review and approval of a descriptive signed 1D relationship. Selected rows and coefficients are the executable relationship. Preserve source geometry signatures and drawing revisions; recalculate measurements on refresh, retain user tolerances only for unchanged feature meaning, and clear approvals on changed sources. Never infer specifications from geometry or dimension text overrides.
+
+Move the existing pure calculation engine to `app/tolerance.py` for reuse by both API routes. Extend it with sign-aware asymmetric bounds and an opt-out of statistical calculations. Preserve legacy symmetric behavior. Use Pint at the CAD integration boundary. The CAD workflow requires explicit independent uniform assumptions for Monte Carlo/RSS; RSS retains the documented tolerance-index meaning, with no Gaussian confidence claim.
+
+### Consequences
+
+No draft database, server GET/PATCH draft routes, multiuser concurrency or revision archive is claimed. LocalStorage has capacity/privacy and single-browser limits; users can export source traces and retain original CAD. A backend can validate a submitted snapshot but cannot discover newer external revisions. Unsupported/ambiguous DXF sources are reported; block geometry is flattened, not preserved as editable block semantics. Angular dimensions are reviewable but excluded from 1D length analysis. See the [workflow guide](docs/cad-tolerance-workflow.md) for supported entities, dimensions, units and verification.
+
+
+## ADR-003 — Automatically generate the signed relationship
+
+**Date:** 2026-11-10
+**Status:** Implemented at the user's explicit request; supersedes ADR-002's routine manual formula and approval interaction.
+
+The CAD UI builds a descriptive relationship from selected measurements and signed coefficients, and the server independently generates the same relationship from validated terms in `automatic_relationship` mode. Clicking Calculate submits that combination without a typed formula or routine approval checkboxes. When no rows are selected, the UI selects all valid nonremoved length rows with both tolerance bounds; it never supplies missing tolerances. All coefficients retain their displayed values (new rows default to +1); assembly topology and subtraction signs are not inferred from geometry. The UI explains these semantics and offers an explicit select-all-specified action.
+
+Source revisions/signatures, finite bounds, supported units and geometry remain validated. Changed sources and dimension text overrides still require conditional review. Statistical assumptions remain explicitly opt-in. Existing manual API clients retain the original approval requirements by omitting `automatic_relationship` or setting it false.

@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, HostListener, inject, signal } from '@angular/core';
+import { CadFeatures } from './cad-features';
 import { DxfEditor } from './dxf/editor';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
@@ -9,11 +10,12 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AnalysisInput, AnalysisResult, AnalysisService } from './analysis.service';
 
 @Component({
-  selector: 'app-root', imports: [DxfEditor, DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressBarModule],
+  selector: 'app-root', imports: [CadFeatures, DxfEditor, DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressBarModule],
   templateUrl: './app.html', styleUrl: './app.scss',
 })
 export class App {
   workspace = typeof location !== 'undefined' && location.hash === '#dxf' ? 'dxf' : 'tolerance';
+  @HostListener('window:hashchange') onHashChange() { this.workspace = location.hash === '#dxf' ? 'dxf' : 'tolerance'; }
   switchWorkspace(value: string) { this.workspace = value; location.hash = value; }
   private service = inject(AnalysisService);
   busy = signal(false);

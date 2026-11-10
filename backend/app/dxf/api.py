@@ -22,7 +22,7 @@ def worker(payload):
         raise HTTPException(422, 'DXF could not be processed within supported limits.') from exc
 
 
-@router.post('/import-dxf')
+@router.post('/import-dxf', response_model=Sketch)
 async def import_dxf(request: Request):
     data = bytearray()
     async for chunk in request.stream():
@@ -36,7 +36,7 @@ async def import_dxf(request: Request):
     result = await run_in_threadpool(worker, {'operation': 'import', 'text': text})
     # Validate imported geometry with the same rules used for export.
     try:
-        Sketch.model_validate(result)
+        result = Sketch.model_validate(result)
     except ValueError as exc:
         raise HTTPException(422, 'Imported geometry exceeds supported limits.') from exc
     return result

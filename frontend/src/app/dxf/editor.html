@@ -8,6 +8,7 @@
       </h1>
     </div>
     <div class="actions">
+      <button (click)="analyzeTolerances()" [disabled]="busy">Analyze Tolerances</button>
       <button (click)="fresh()" [disabled]="busy">New drawing</button
       ><button (click)="demo()" [disabled]="busy">Load example</button
       ><label class="button"

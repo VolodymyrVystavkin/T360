@@ -8,7 +8,7 @@ Open your web browser and navigate to `http://127.0.0.1:8080` to access the appl
 
 A full-stack engineering workspace built with **Angular 21 + Angular Material** and **Python FastAPI**. Define a signed dimensional stack, compare worst-case and RSS bounds, and run reproducible Monte Carlo simulations. Results include a histogram, simulated yield, central 95% sample interval, engineering guidance, and JSON export.
 
-The guidance is deterministic and based on calculation results; this version does not integrate an LLM, require API keys, or store projects. Inputs and results live in browser memory until exported.
+The guidance is deterministic and based on calculation results; this version does not integrate an LLM, require API keys, or store server projects. Manual analysis uses browser memory; CAD working drawings and drafts persist locally in this browser.
 
 ## Run locally
 
@@ -111,3 +111,9 @@ Install the updated backend requirements and run `npm ci` in `frontend`, or rebu
 In the DXF editor, click **Auto Dimension · All**, or select geometry (Shift-click for multiple entities) and use **Auto · Selected**. Manual **Dimension**, **Diameter**, **Radius**, and **Angular Dimension** tools are also available. Select a dimension to edit placement, style, precision, explicit tolerance or a visibly marked text override. Geometry edits update measurements; undo/redo and browser save/restore retain annotations.
 
 The dedicated **ASME Y14.5** layer can be toggled independently. Its name is not a compliance claim. Export writes real DXF dimensions; unsupported import definitions/styles are reported. See [annotation instructions and limitations](docs/annotations.md) and [ADR-001](ADR.md). Rebuild containers with `docker compose up --build -d` to apply the updated frontend and backend.
+
+## Analyze tolerances from CAD
+
+In the DXF Editor, click **Analyze Tolerances** to transfer the current drawing, including unsaved edits, into **Imported CAD Features** on the existing Tolerance Analysis page. Choose measurement rows, enter missing tolerances and assign signed coefficients. The program generates the relationship automatically; calculating with no selection uses all valid features with specified tolerances. Changed sources and text overrides still require review. Worst-case runs independently; Monte Carlo and the RSS tolerance index require explicit independent uniform assumptions. Source buttons reopen and highlight the geometry or original annotation.
+
+Working drawings and CAD drafts persist in this browser. Revisions and source signatures detect stale inputs; refresh updates measurements and requires review of changed sources. Units must be explicitly assigned, with Pint conversion for result units. Geometry never supplies invented tolerances. See [supported geometry/dimensions, workflow and limitations](docs/cad-tolerance-workflow.md) and [ADR-002](ADR.md). Install updated backend requirements (including Pint) or rebuild containers before using the bridge. Try the deliberately synthetic [acceptance DXF](tests/fixtures/cad-clearance.dxf): its three explicit component dimensions produce +0.20 mm nominal clearance and [−0.05, +0.45] mm worst-case bounds after defining Housing − Shaft − Spacer.

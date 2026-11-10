@@ -462,3 +462,14 @@ The architecture is ready for implementation when:
 - Licensing, provenance, data privacy, and execution boundaries are reviewed.
 
 **Next action:** Review this proposal with Codex against the existing repository. Resolve conflicts via ADRs before generating substantial code.
+
+## Implemented CAD-to-tolerance bridge (2026-11-10)
+
+The existing editor and tolerance page are connected by `CadDraftService` and the additive `CadFeatures` section. The native `Sketch` now carries a drawing ID and captured revision; legacy browser sketches receive defaults. The shared service snapshots unsaved geometry/annotations, persists the working sketch and engineering draft in browser localStorage, and provides source selections when returning to the editor. This is local persistence, not the proposed server project/revision archive.
+
+`backend/app/cad_analysis.py` independently extracts normalized measured features from the existing Pydantic sketch. The stateless `/api/v1/analysis/import-drawing` and `/api/v1/analysis/calculate` endpoints validate source signatures, revisions, review, engineering relationships and Pint length conversion. Draft reads/edits use browser persistence. No duplicate geometry or calculation engine was introduced: the original engine moved into `backend/app/tolerance.py`, with additive asymmetric bounds and worst-case-only support; the existing endpoint retains its symmetric defaults.
+
+Supported sources include XY LINE/CIRCLE/ARC, straight LWPOLYLINE/2D POLYLINE, bounded transformed INSERT geometry and the existing supported linked DIMENSION subset. Geometry, explicit dimensions, explicit tolerances, text overrides and reviewed user specifications remain separate. Missing tolerances never default to zero. Stale/changed sources require refresh/review; unchanged feature meaning permits preservation of user tolerances. Result traces identify the exact drawing snapshot. See [workflow, API, units, revision behavior and limitations](docs/cad-tolerance-workflow.md) and ADR-002.
+
+
+The subsequent automatic relationship workflow (ADR-003) generates the signed formula from current selected rows and coefficients. Calculation with no selection selects available valid features with explicit tolerance bounds. Routine formula/specification approval gates are removed from this UI at the user's request; changed-source/override review and engineering validation remain. Server automatic mode constructs the relationship from validated terms; legacy manual API mode retains its prior contract.

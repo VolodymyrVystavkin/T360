@@ -1,5 +1,6 @@
 """Native sketch validation; annotations are measurements, never constraints."""
 import math
+import uuid
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -14,6 +15,7 @@ class Entity(BaseModel):
     type: Literal['line', 'circle', 'arc', 'polyline']
     layer: str = Field(default='0', min_length=1, max_length=100, pattern=r'^[\w .-]+$')
     source_handle: str | None = None
+    source_type: str | None = Field(default=None, max_length=30)
     points: list[tuple[Coordinate, Coordinate]] = Field(min_length=1, max_length=10000)
     radius: float = Field(default=1, gt=0, le=1e9)
     start_angle: float = Field(default=0, ge=-360, le=360)
@@ -131,6 +133,8 @@ def measured(annotation, entities):
 
 
 class Sketch(StrictModel):
+    drawing_id: str = Field(default_factory=lambda: str(uuid.uuid4()), min_length=1, max_length=100)
+    revision: int = Field(default=1, ge=1, strict=True)
     schema_version: Literal[1] = 1
     units: UNITS | None = None
     entities: list[Entity] = Field(max_length=10000)

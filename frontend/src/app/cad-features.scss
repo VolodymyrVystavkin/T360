@@ -1,0 +1,15 @@
+:host { display:block; margin-bottom: 24px; }
+.cad-panel { background: #fff; border: 1px solid #dce2e8; padding: 24px; border-radius: 12px; color: #243344; }
+.scroll { overflow-x:auto; margin: 20px 0; }
+table { border-collapse: collapse; width:100%; font-size: 13px; }
+th, td { text-align:left; padding:10px; border-bottom:1px solid #dce2e8; vertical-align:top; }
+td input[type=number] { width:85px; }
+input, select, button { padding:8px; margin:4px; }
+.parameters { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }
+.parameters label { display:flex; flex-direction:column; }
+[role=alert] { color:#9c261c; }
+pre { overflow:auto; max-height:320px; }
+
+fieldset { border:0; padding:0; margin:0; min-width:0; }
+.measurement-type { display:flex; align-items:center; gap:8px; margin:4px; color:#355569; }
+.measurement-icon { width:28px; height:28px; flex-shrink:0; padding:4px; box-sizing:content-box; background:#edf5f8; border:1px solid #d6e6ed; border-radius:6px; }

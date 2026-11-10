@@ -9,6 +9,7 @@ export interface Entity {
   end_angle: number;
   closed: boolean;
   source_handle?: string;
+  source_type?: string | null;
 }
 export const ANNOTATION_LAYER = 'ASME Y14.5';
 export interface AnnotationStyle {
@@ -42,6 +43,8 @@ export type Annotation = AnnotationBase &
     | { type: 'angular' }
   );
 export interface Sketch {
+  drawing_id: string;
+  revision: number;
   schema_version: 1;
   units: string | null;
   entities: Entity[];
@@ -60,6 +63,8 @@ export const defaultStyle = (): AnnotationStyle => ({
 export function normalizeSketch(input: Partial<Sketch> & Pick<Sketch, 'entities'>): Sketch {
   return {
     ...input,
+    drawing_id: input.drawing_id || crypto.randomUUID(),
+    revision: input.revision || 1,
     schema_version: 1,
     units: input.units || null,
     warnings: input.warnings || [],

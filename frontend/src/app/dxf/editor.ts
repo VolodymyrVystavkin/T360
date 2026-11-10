@@ -1,16 +1,20 @@
 import {
   AfterViewInit,
   ChangeDetectorRef,
+  DestroyRef,
   Component,
   ElementRef,
   HostListener,
   OnDestroy,
   ViewChild,
   inject,
+  output,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import Konva from 'konva';
+import { CadDraftService } from '../cad-draft.service';
 
 import {
   Annotation,
@@ -43,6 +47,9 @@ export type { Entity } from './model';
 })
 export class DxfEditor implements AfterViewInit, OnDestroy {
   @ViewChild('canvas') canvas!: ElementRef<HTMLDivElement>;
+  cad = inject(CadDraftService);
+  private destroyRef = inject(DestroyRef);
+  analyze = output<void>();
   private http = inject(HttpClient);
   private changeDetector = inject(ChangeDetectorRef);
   stage!: Konva.Stage;
@@ -108,7 +115,21 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   get current() {
     return this.sketch.entities.find((e) => e.id === this.selected);
   }
+  resumeDrawing() {
+    const state = this.cad.drawing();
+    if (state) { this.sketch = normalizeSketch(structuredClone(state.sketch)); this.name = state.name; }
+    const highlight = this.cad.highlight();
+    if (highlight) {
+      this.selectionIds = highlight.ids;
+      this.selected = highlight.ids[0] || '';
+      this.selectedAnnotation = highlight.annotation || '';
+      const layers = [...this.sketch.entities.filter(e => highlight.ids.includes(e.id)).map(e => e.layer), ANNOTATION_LAYER];
+      this.sketch.hidden_layers = this.sketch.hidden_layers.filter(l => !layers.includes(l));
+      this.cad.highlight.set(null);
+    }
+  }
   ngAfterViewInit() {
+    this.resumeDrawing();
     this.stage = new Konva.Stage({ container: this.canvas.nativeElement, width: 800, height: 600 });
     this.drawing = new Konva.Layer();
     this.stage.add(this.drawing);
@@ -143,9 +164,11 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       this.render();
     });
     this.observer.observe(this.canvas.nativeElement);
-    this.render();
+    this.fit();
   }
   ngOnDestroy() {
+    syncAnnotations(this.sketch);
+    this.cad.capture(this.sketch, this.name);
     this.observer?.disconnect();
     this.stage?.destroy();
   }
@@ -770,6 +793,19 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       },
     });
   }
+  analyzeTolerances() {
+    if (this.busy) return;
+    syncAnnotations(this.sketch);
+    this.cad.capture(this.sketch, this.name);
+    this.busy = true;
+    this.cad.extract(this.sketch).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: extraction => {
+        this.cad.merge(extraction); this.busy = false; this.analyze.emit();
+        this.changeDetector.markForCheck();
+      },
+      error: () => { this.busy = false; this.message = 'Drawing validation failed. Check geometry and annotation references, and the backend connection.'; this.changeDetector.markForCheck(); },
+    });
+  }
   save() {
     syncAnnotations(this.sketch);
     try {
@@ -799,6 +835,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     } catch {
       this.message = 'Saved sketch could not be restored.';
     }
+  }
+  @HostListener('window:beforeunload') persistWorkingDrawing() {
+    syncAnnotations(this.sketch); this.cad.capture(this.sketch, this.name);
   }
   @HostListener('window:keydown', ['$event']) key(event: KeyboardEvent) {
     if ((event.target as HTMLElement)?.matches('input,select,textarea')) return;
