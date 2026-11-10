@@ -99,3 +99,9 @@ The frontend lockfile is committed for reproducible `npm ci` installs. Vitest is
 ## Verification performed
 
 Verified a clean frontend `npm ci`, 4 Angular/Vitest tests, 12 Python tests, the Angular production build, both container builds, both Compose configurations, and the HTTP smoke test through nginx. Container verification used this environment’s Docker-compatible Podman runtime. The workflow itself must still be run on your GitHub self-hosted Ubuntu runner. Browser visual and interaction checks were not performed.
+
+## 2D DXF editor
+
+Open **http://localhost:4200/#dxf** (development) or **http://localhost:8080/#dxf** (Docker) for the new Angular/Konva editor. Import/export supported DXF geometry, draw lines/circles/rectangles, edit numeric properties, measure, manage layers, undo/redo, and save a sketch in your browser. The tolerance workspace remains available from the navigation.
+
+Install the updated backend requirements and run `npm ci` in `frontend`, or rebuild with `docker compose up --build`. See [DXF support, API and deployment limits](docs/dxf-editor.md). Public hosting has not been configured; the complete app needs both the UI and Python API.

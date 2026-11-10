@@ -372,3 +372,6 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,node,angular,visualstudiocode,linux
+# Versioned engineering logs (runtime logs remain ignored).
+!docs/logs/
+!docs/logs/*.md

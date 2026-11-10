@@ -1,4 +1,6 @@
 <header><a class="brand" href="/" aria-label="T360 home"><span class="logo">T360</span> Tolerance <strong>360</strong></a><span class="workspace">ANALYSIS WORKSPACE / 01</span></header>
+<nav class="workspace-nav"><button [class.chosen]="workspace === 'dxf'" (click)="switchWorkspace('dxf')">2D DXF editor</button><button [class.chosen]="workspace === 'tolerance'" (click)="switchWorkspace('tolerance')">Tolerance analysis</button></nav>
+@if (workspace === 'dxf') { @defer (on immediate) { <dxf-editor /> } @placeholder { <p>Loading DXF editor…</p> } } @else {
 <main>
   <div class="intro"><div><p class="eyebrow">PRECISION STARTS WITH UNDERSTANDING</p><h1>Tolerance analysis<span>.</span></h1><p class="subtitle">Explore your stack. Understand variation. Build with confidence.</p></div><span class="badge">DIMENSIONAL STACK · V1.0</span></div>
   <form #form="ngForm" (ngSubmit)="run(form)" (input)="invalidate()">
@@ -47,3 +49,5 @@
   </section>
   <footer>T360 <span>Independent components. Explicit assumptions. Reproducible results.</span></footer>
 </main>
+
+}

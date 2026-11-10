@@ -14,7 +14,7 @@ const result: AnalysisResult = {
 };
 
 describe('Engineering analysis workspace', () => {
-  beforeEach(() => TestBed.configureTestingModule({ imports: [App], providers: [provideHttpClient(), provideHttpClientTesting()] }));
+  beforeEach(async () => { await TestBed.configureTestingModule({ imports: [App], providers: [provideHttpClient(), provideHttpClientTesting()] }).compileComponents(); });
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   it('renders the editable stack and analysis action', async () => {

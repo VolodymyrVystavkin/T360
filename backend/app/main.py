@@ -104,3 +104,6 @@ def health():
 @app.post('/api/tolerance/analyze', response_model=AnalysisResult)
 def tolerance_analysis(request: AnalysisRequest):
     return analyze(request)
+
+from app.dxf.api import router as drawings_router
+app.include_router(drawings_router)
