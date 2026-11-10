@@ -6,15 +6,32 @@ import { AnalysisResult } from './analysis.service';
 import { NgForm } from '@angular/forms';
 
 const result: AnalysisResult = {
-  nominal: .5, worst_case: { lower: .15, upper: .85, half_width: .35 },
-  rss: { lower: .27, upper: .73, half_width: .23 },
-  monte_carlo: { mean: .5, standard_deviation: .13, minimum: .2, maximum: .8,
-    p025: .25, p975: .75, yield_percent: 99, counts: [1, 2], bin_edges: [.2, .5, .8], samples: 10000, seed: 42 },
+  nominal: 0.5,
+  worst_case: { lower: 0.15, upper: 0.85, half_width: 0.35 },
+  rss: { lower: 0.27, upper: 0.73, half_width: 0.23 },
+  monte_carlo: {
+    mean: 0.5,
+    standard_deviation: 0.13,
+    minimum: 0.2,
+    maximum: 0.8,
+    p025: 0.25,
+    p975: 0.75,
+    yield_percent: 99,
+    counts: [1, 2],
+    bin_edges: [0.2, 0.5, 0.8],
+    samples: 10000,
+    seed: 42,
+  },
   insights: ['Largest contribution: Housing.'],
 };
 
 describe('Engineering analysis workspace', () => {
-  beforeEach(async () => { await TestBed.configureTestingModule({ imports: [App], providers: [provideHttpClient(), provideHttpClientTesting()] }).compileComponents(); });
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    }).compileComponents();
+  });
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   it('renders the editable stack and analysis action', async () => {
@@ -37,14 +54,16 @@ describe('Engineering analysis workspace', () => {
     request.flush(result);
     fixture.detectChanges();
     expect(app.busy()).toBe(false);
-    expect(fixture.nativeElement.textContent).toContain('SIMULATED YIELD');
+    expect(fixture.nativeElement.textContent).toContain('Simulated yield');
     expect(fixture.nativeElement.textContent).toContain('99.00');
   });
 
   it('shows service failures and allows a retry', () => {
     const app = TestBed.createComponent(App).componentInstance;
     app.run({ invalid: false } as NgForm);
-    TestBed.inject(HttpTestingController).expectOne('/api/tolerance/analyze').flush('Unavailable', { status: 503, statusText: 'Unavailable' });
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/tolerance/analyze')
+      .flush('Unavailable', { status: 503, statusText: 'Unavailable' });
     expect(app.error()).toContain('Cannot reach');
     expect(app.busy()).toBe(false);
     app.run({ invalid: false } as NgForm);
@@ -59,5 +78,34 @@ describe('Engineering analysis workspace', () => {
     app.input.lower_spec = 2;
     app.run({ invalid: false } as NgForm);
     expect(app.error()).toContain('Lower specification');
+  });
+});
+
+describe('Application shell workspace pages', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    }).compileComponents();
+  });
+  afterEach(() => {
+    location.hash = '';
+    TestBed.inject(HttpTestingController).verify();
+  });
+  it('opens real dashboard and settings pages without changing the manual calculation input', async () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    const before = JSON.stringify(app.input);
+    await fixture.whenStable();
+    const navButtons = [
+      ...fixture.nativeElement.querySelectorAll('workspace-nav button'),
+    ] as HTMLButtonElement[];
+    navButtons.find((b) => b.textContent?.trim() === 'Dashboard')!.click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('workspace-pages')).not.toBeNull();
+    navButtons.find((b) => b.textContent?.trim() === 'Settings')!.click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('workspace-settings')).not.toBeNull();
+    expect(JSON.stringify(app.input)).toBe(before);
   });
 });

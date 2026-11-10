@@ -1,0 +1,226 @@
+:host {
+  display: block;
+}
+.workbench-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.menu-bar,
+.document-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+}
+.menu-bar {
+  min-height: 68px;
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand strong {
+  color: var(--brand);
+}
+.logo-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--brand);
+  border-radius: 10px;
+  color: var(--on-brand);
+  font-size: 20px;
+  font-weight: 700;
+  margin-right: 6px;
+}
+.app-menu {
+  display: flex;
+  gap: 2px;
+}
+.app-menu details {
+  position: relative;
+}
+.app-menu > button,
+.app-menu summary {
+  background: none;
+  border: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+.app-menu summary::-webkit-details-marker {
+  display: none;
+}
+.app-menu > button:hover,
+.app-menu summary:hover,
+.app-menu details[open] > summary {
+  background: var(--brand-subtle);
+  color: var(--brand-hover);
+}
+.project-context {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+.project-context > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.project-context small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.document-bar {
+  min-height: 48px;
+  background: var(--surface-muted);
+  justify-content: space-between;
+  padding-left: 104px;
+}
+.analysis-tabs {
+  display: flex;
+  gap: 8px;
+}
+.analysis-tabs button,
+.drawing-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.analysis-tabs button[aria-selected='true'],
+.drawing-tab {
+  color: var(--brand-hover);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+.analysis-tabs button[aria-selected='true'] {
+  font-weight: 600;
+}
+.analysis-tabs button:hover {
+  background: var(--brand-subtle);
+}
+.analysis-tabs ui-icon {
+  width: 16px;
+  height: 16px;
+}
+.drawing-tab small,
+.document-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.workspace-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.dropdown {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  top: calc(100% + 8px);
+  min-width: 240px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-menu);
+}
+.dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.dropdown button:hover {
+  background: var(--brand-subtle);
+  color: var(--brand-hover);
+}
+aside {
+  position: relative;
+  padding: 20px 48px 20px 24px;
+  background: var(--brand-subtle);
+  line-height: 1.7;
+  font-size: 13px;
+}
+aside p {
+  margin: 6px 0 0;
+  max-width: 900px;
+}
+.close-help {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 22px;
+}
+@media (max-width: 1050px) {
+  .project-context {
+    display: none;
+  }
+  .open-editor {
+    margin-left: auto;
+  }
+}
+@media (max-width: 700px) {
+  .menu-bar {
+    padding: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .app-menu {
+    margin-left: auto;
+  }
+  .open-editor {
+    display: none;
+  }
+  .brand {
+    font-size: 14px;
+  }
+  .document-bar {
+    padding: 8px 12px;
+  }
+  .document-hint {
+    display: none;
+  }
+  .analysis-tabs button {
+    padding: 8px;
+    font-size: 11px;
+  }
+  .analysis-tabs {
+    flex-wrap: wrap;
+  }
+  .drawing-tab {
+    overflow-wrap: anywhere;
+  }
+}

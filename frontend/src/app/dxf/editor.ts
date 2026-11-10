@@ -11,6 +11,9 @@ import {
   output,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { UiIcon } from '../ui/icon';
+import { UiState } from '../ui/state';
+import { cadTheme } from '../ui/canvas-theme';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import Konva from 'konva';
@@ -41,7 +44,7 @@ export type { Entity } from './model';
 
 @Component({
   selector: 'dxf-editor',
-  imports: [FormsModule],
+  imports: [FormsModule, UiIcon, UiState],
   templateUrl: './editor.html',
   styleUrl: './editor.scss',
 })
@@ -61,6 +64,61 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   angularFirst = '';
   selectionIds: string[] = [];
   settingsOpen = false;
+  explorerLimit = 100;
+  @HostListener('window:resize') adaptPanels() {
+    if (window.innerWidth < 1200) this.rightPanelOpen = false;
+    if (window.innerWidth < 900) this.leftPanelOpen = false;
+  }
+  leftPanelOpen = typeof window === 'undefined' || window.innerWidth >= 900;
+  rightPanelOpen = typeof window === 'undefined' || window.innerWidth >= 1200;
+  saveStatus = 'Unsaved changes';
+  private savedSnapshot = '';
+  private theme = cadTheme();
+  get selectedCount() {
+    return this.selectedAnnotation
+      ? 1
+      : this.sketch.entities.filter(
+          (e) => this.selectionIds.includes(e.id) || e.id === this.selected,
+        ).length;
+  }
+  get annotationIssues() {
+    return this.sketch.annotations.filter((a) => a.status !== 'valid').length;
+  }
+  layerEntityCount(layer: string) {
+    return (
+      this.sketch.entities.filter((e) => e.layer === layer).length +
+      this.sketch.annotations.filter((a) => a.layer === layer).length
+    );
+  }
+  inspectEntity(id: string) {
+    this.selected = id;
+    this.selectionIds = [id];
+    this.selectedAnnotation = '';
+    this.rightPanelOpen = true;
+    this.render();
+  }
+  get propertyMeasurements() {
+    const e = this.current;
+    if (!e) return [];
+    if (e.type === 'line')
+      return [
+        {
+          label: 'Length',
+          value: Math.hypot(e.points[1][0] - e.points[0][0], e.points[1][1] - e.points[0][1]),
+        },
+      ];
+    if (e.type === 'circle') return [{ label: 'Diameter', value: e.radius * 2 }];
+    return [];
+  }
+  zoomBy(factor: number) {
+    if (!this.stage) return;
+    const x = this.stage.width() / 2,
+      y = this.stage.height() / 2;
+    const world: Point = [(x - this.offset[0]) / this.zoom, (this.offset[1] - y) / this.zoom];
+    this.zoom = Math.max(0.02, Math.min(200, this.zoom * factor));
+    this.offset = [x - world[0] * this.zoom, y + world[1] * this.zoom];
+    this.render();
+  }
   annotationStyle = defaultStyle();
   annotationPrecision = 2;
   annotationText = annotationText;
@@ -117,14 +175,23 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   }
   resumeDrawing() {
     const state = this.cad.drawing();
-    if (state) { this.sketch = normalizeSketch(structuredClone(state.sketch)); this.name = state.name; }
+    if (state) {
+      this.sketch = normalizeSketch(structuredClone(state.sketch));
+      this.name = state.name;
+      this.savedSnapshot = JSON.stringify({ name: this.name, sketch: this.sketch });
+      this.saveStatus = this.cad.storageError() ? 'Storage unavailable' : 'Saved in this browser';
+    }
     const highlight = this.cad.highlight();
     if (highlight) {
+      this.rightPanelOpen = true;
       this.selectionIds = highlight.ids;
       this.selected = highlight.ids[0] || '';
       this.selectedAnnotation = highlight.annotation || '';
-      const layers = [...this.sketch.entities.filter(e => highlight.ids.includes(e.id)).map(e => e.layer), ANNOTATION_LAYER];
-      this.sketch.hidden_layers = this.sketch.hidden_layers.filter(l => !layers.includes(l));
+      const layers = [
+        ...this.sketch.entities.filter((e) => highlight.ids.includes(e.id)).map((e) => e.layer),
+        ANNOTATION_LAYER,
+      ];
+      this.sketch.hidden_layers = this.sketch.hidden_layers.filter((l) => !layers.includes(l));
       this.cad.highlight.set(null);
     }
   }
@@ -415,6 +482,11 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   render() {
     syncAnnotations(this.sketch);
     checkAnnotationCollisions(this.sketch);
+    if (this.saveStatus !== 'Storage unavailable')
+      this.saveStatus =
+        this.savedSnapshot === JSON.stringify({ name: this.name, sketch: this.sketch })
+          ? 'Saved in this browser'
+          : 'Unsaved changes';
     this.changeDetector.markForCheck();
     if (!this.drawing) return;
     this.drawing.destroyChildren();
@@ -428,7 +500,7 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
         this.drawing.add(
           new Konva.Line({
             points: [x, 0, x, height],
-            stroke: '#253541',
+            stroke: this.theme.grid,
             strokeWidth: 1,
             listening: false,
           }),
@@ -437,7 +509,7 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
         this.drawing.add(
           new Konva.Line({
             points: [0, y, width, y],
-            stroke: '#253541',
+            stroke: this.theme.grid,
             strokeWidth: 1,
             listening: false,
           }),
@@ -446,14 +518,14 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.drawing.add(
       new Konva.Line({
         points: [0, this.offset[1], width, this.offset[1]],
-        stroke: '#416b5d',
+        stroke: this.theme.axisX,
         listening: false,
       }),
     );
     this.drawing.add(
       new Konva.Line({
         points: [this.offset[0], 0, this.offset[0], height],
-        stroke: '#75474e',
+        stroke: this.theme.axisY,
         listening: false,
       }),
     );
@@ -461,7 +533,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       if (this.hidden.has(item.layer)) continue;
       const options = {
         stroke:
-          item.id === this.selected || this.selectionIds.includes(item.id) ? '#ffcf70' : '#7bddd1',
+          item.id === this.selected || this.selectionIds.includes(item.id)
+            ? this.theme.selected
+            : this.theme.geometry,
         strokeWidth: item.id === this.selected || this.selectionIds.includes(item.id) ? 2.5 : 1.5,
         hitStrokeWidth: 12,
         entityId: item.id,
@@ -487,6 +561,18 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
           ...options,
           points: points.flatMap((p) => this.screen(p)),
           closed: item.closed,
+        });
+      }
+      if (this.tool === 'select') {
+        node.on('mouseenter', () => {
+          node.stroke(this.theme.selected);
+          this.stage.container().style.cursor = 'pointer';
+          this.drawing.batchDraw();
+        });
+        node.on('mouseleave', () => {
+          node.stroke(options.stroke);
+          this.stage.container().style.cursor = '';
+          this.drawing.batchDraw();
         });
       }
       this.drawing.add(node);
@@ -516,6 +602,7 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
             this.render();
           },
           () => this.checkpoint(),
+          this.theme,
         );
         group.draggable(this.tool === 'select');
         this.drawing.add(group);
@@ -523,7 +610,13 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     if (this.start) {
       const p = this.screen(this.start);
       this.drawing.add(
-        new Konva.Circle({ x: p[0], y: p[1], radius: 4, fill: '#ffcf70', listening: false }),
+        new Konva.Circle({
+          x: p[0],
+          y: p[1],
+          radius: 4,
+          fill: this.theme.selected,
+          listening: false,
+        }),
       );
     }
     this.drawing.batchDraw();
@@ -798,20 +891,33 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     syncAnnotations(this.sketch);
     this.cad.capture(this.sketch, this.name);
     this.busy = true;
-    this.cad.extract(this.sketch).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: extraction => {
-        this.cad.merge(extraction); this.busy = false; this.analyze.emit();
-        this.changeDetector.markForCheck();
-      },
-      error: () => { this.busy = false; this.message = 'Drawing validation failed. Check geometry and annotation references, and the backend connection.'; this.changeDetector.markForCheck(); },
-    });
+    this.cad
+      .extract(this.sketch)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (extraction) => {
+          this.cad.merge(extraction);
+          this.busy = false;
+          this.analyze.emit();
+          this.changeDetector.markForCheck();
+        },
+        error: () => {
+          this.busy = false;
+          this.message =
+            'Drawing validation failed. Check geometry and annotation references, and the backend connection.';
+          this.changeDetector.markForCheck();
+        },
+      });
   }
   save() {
     syncAnnotations(this.sketch);
     try {
       localStorage.setItem('t360-sketch', JSON.stringify({ name: this.name, sketch: this.sketch }));
+      this.savedSnapshot = JSON.stringify({ name: this.name, sketch: this.sketch });
+      this.saveStatus = 'Saved in this browser';
       this.message = 'Sketch saved in this browser.';
     } catch {
+      this.saveStatus = 'Storage unavailable';
       this.message = 'Browser storage is unavailable or full.';
     }
   }
@@ -831,13 +937,16 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       this.name = data.name;
       this.selected = '';
       this.fit();
+      this.savedSnapshot = JSON.stringify({ name: this.name, sketch: this.sketch });
+      this.saveStatus = 'Saved in this browser';
       this.message = 'Browser save restored.';
     } catch {
       this.message = 'Saved sketch could not be restored.';
     }
   }
   @HostListener('window:beforeunload') persistWorkingDrawing() {
-    syncAnnotations(this.sketch); this.cad.capture(this.sketch, this.name);
+    syncAnnotations(this.sketch);
+    this.cad.capture(this.sketch, this.name);
   }
   @HostListener('window:keydown', ['$event']) key(event: KeyboardEvent) {
     if ((event.target as HTMLElement)?.matches('input,select,textarea')) return;

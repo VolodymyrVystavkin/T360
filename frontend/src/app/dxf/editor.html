@@ -1,44 +1,60 @@
-<div class="editor">
+<div class="editor" [attr.aria-busy]="busy">
   <div class="titlebar">
     <div>
-      <span class="eyebrow">ENGINEERING WORKBENCH / 2D CAD</span>
+      <span class="eyebrow">Precision in every detail</span>
       <h1>
         DXF editor<span> / </span
-        ><input aria-label="Drawing name" [(ngModel)]="name" maxlength="100" />
+        ><input
+          aria-label="Drawing name"
+          [(ngModel)]="name"
+          (ngModelChange)="saveStatus = 'Unsaved changes'"
+          maxlength="100"
+        />
       </h1>
     </div>
     <div class="actions">
-      <button (click)="analyzeTolerances()" [disabled]="busy">Analyze Tolerances</button>
-      <button (click)="fresh()" [disabled]="busy">New drawing</button
-      ><button (click)="demo()" [disabled]="busy">Load example</button
-      ><label class="button"
+      <button class="primary" (click)="analyzeTolerances()" [disabled]="busy">
+        <ui-icon name="analysis" />Analyze Tolerances
+      </button>
+      <label class="button"
         >Import DXF<input
           type="file"
           accept=".dxf"
           (change)="importFile($event)"
           [disabled]="busy" /></label
-      ><button class="primary" (click)="exportDxf()" [disabled]="busy || !sketch.units">
-        Export DXF ↗
-      </button>
+      ><button (click)="exportDxf()" [disabled]="busy || !sketch.units">Export DXF ↗</button>
     </div>
   </div>
+  @if (cad.storageError()) {
+    <ui-state kind="error" title="Browser storage unavailable" [text]="cad.storageError()" />
+  }
   <div class="toolbar">
-    <div class="tools">
-      @for (item of ['select', 'pan', 'line', 'rectangle', 'circle', 'measure']; track item) {
-        <button
-          [class.active]="tool === item"
-          [attr.aria-pressed]="tool === item"
-          (click)="setTool(item)"
-        >
-          {{ item }}
-        </button>
-      }
+    <div class="tools panel-toggles">
+      <button
+        type="button"
+        (click)="leftPanelOpen = !leftPanelOpen"
+        [attr.aria-expanded]="leftPanelOpen"
+        aria-controls="drawing-panel"
+        title="Show or hide drawing tools and layers"
+      >
+        <ui-icon name="layers" />Tools & layers
+      </button>
+      <button
+        type="button"
+        (click)="rightPanelOpen = !rightPanelOpen"
+        [attr.aria-expanded]="rightPanelOpen"
+        aria-controls="properties-panel"
+        title="Show or hide entity properties"
+      >
+        <ui-icon name="settings" />Properties
+      </button>
     </div>
     <div class="tools">
-      <button (click)="undo()" [disabled]="!history.length">↶ Undo</button
-      ><button (click)="redo()" [disabled]="!future.length">↷ Redo</button
-      ><button (click)="fit()">Fit drawing</button><button (click)="save()">Save</button
-      ><button (click)="restore()">Restore</button>
+      <button title="Undo (Ctrl/Cmd+Z)" (click)="undo()" [disabled]="!history.length">↶ Undo</button
+      ><button title="Redo (Ctrl/Cmd+Shift+Z)" (click)="redo()" [disabled]="!future.length">
+        ↷ Redo</button
+      ><button (click)="fit()"><ui-icon name="fit" />Fit drawing</button
+      ><button (click)="save()">Save</button><button (click)="restore()">Restore</button>
     </div>
   </div>
   <div class="annotation-toolbar" aria-label="Dimension tools">
@@ -60,13 +76,20 @@
         [attr.aria-pressed]="tool === action[0]"
         (click)="setTool(action[0])"
       >
-        {{ action[1] }}
+        <ui-icon [name]="action[0]" />{{ action[1] }}
       </button>
     }
     <button (click)="settingsOpen = !settingsOpen" [attr.aria-expanded]="settingsOpen">
       Annotation Settings
     </button>
   </div>
+  @if (busy) {
+    <ui-state
+      kind="loading"
+      title="Processing drawing"
+      text="Validating the current operation. Your model coordinates stay unchanged."
+    />
+  }
   @if (settingsOpen) {
     <div class="annotation-settings">
       <strong>Defaults for new annotations</strong>
@@ -100,9 +123,51 @@
       </p>
     </div>
   }
-  <div class="workspace">
-    <aside>
-      <div class="panel-title">DRAWING SETUP <span>01</span></div>
+  <div
+    class="workspace"
+    [class.left-closed]="!leftPanelOpen"
+    [class.right-closed]="!rightPanelOpen"
+  >
+    <aside id="drawing-panel" [hidden]="!leftPanelOpen">
+      <div class="panel-title">
+        Draw & inspect
+        <button
+          class="icon-button"
+          aria-label="Collapse tools and layers"
+          (click)="leftPanelOpen = false"
+        >
+          <ui-icon name="left" />
+        </button>
+      </div>
+      <div class="tool-palette">
+        @for (item of ['select', 'pan', 'line', 'rectangle', 'circle', 'measure']; track item) {
+          <button
+            [class.active]="tool === item"
+            [attr.aria-pressed]="tool === item"
+            [title]="
+              item === 'select'
+                ? 'Select (Esc)'
+                : item === 'pan'
+                  ? 'Pan: drag the canvas'
+                  : item === 'measure'
+                    ? 'Measure between two points'
+                    : 'Draw ' + item
+            "
+            (click)="setTool(item)"
+          >
+            <ui-icon [name]="item" /><span>{{ item }}</span>
+          </button>
+        }
+        <button
+          type="button"
+          disabled
+          title="Arc creation is not implemented. Imported arc properties can be edited."
+        >
+          <ui-icon name="arc" /><span>Arc</span>
+        </button>
+      </div>
+      <div class="panel-title section">Drawing setup</div>
+
       <label
         >Reassign drawing units<select
           [ngModel]="sketch.units || ''"
@@ -120,7 +185,7 @@
         ><input type="checkbox" [(ngModel)]="grid" (change)="render()" /> Show grid</label
       >
       <div class="panel-title section">
-        LAYERS <span>{{ layers.length }}</span>
+        Layers <span>{{ layers.length }}</span>
       </div>
       <label
         >Active layer<select [(ngModel)]="activeLayer">
@@ -130,10 +195,40 @@
         </select></label
       >
       @for (layer of layers; track layer) {
-        <button class="layer" (click)="toggleLayer(layer)" [attr.aria-pressed]="!hidden.has(layer)">
-          <i [class.off]="hidden.has(layer)"></i>{{ layer
-          }}<span>{{ hidden.has(layer) ? 'Hidden' : 'Visible' }}</span>
-        </button>
+        <div class="layer-row" [class.active-layer]="activeLayer === layer">
+          <button
+            class="visibility"
+            (click)="toggleLayer(layer)"
+            [attr.aria-label]="(hidden.has(layer) ? 'Show ' : 'Hide ') + layer"
+            [attr.aria-pressed]="!hidden.has(layer)"
+            [title]="hidden.has(layer) ? 'Show layer' : 'Hide layer'"
+          >
+            <ui-icon [name]="hidden.has(layer) ? 'hidden' : 'eye'" />
+          </button>
+          <span
+            class="layer-swatch"
+            [class.annotation-swatch]="layer === annotationLayer"
+            aria-hidden="true"
+          ></span>
+          <button
+            class="layer-select"
+            (click)="activeLayer = layer"
+            [disabled]="layer === annotationLayer"
+            [title]="
+              layer === annotationLayer
+                ? 'Annotation layer; choose a geometry layer for drawing'
+                : 'Set active drawing layer'
+            "
+          >
+            <span>{{ layer }}</span
+            ><small
+              >{{ layerEntityCount(layer) }} ·
+              {{
+                hidden.has(layer) ? 'Hidden' : activeLayer === layer ? 'Active' : 'Visible'
+              }}</small
+            >
+          </button>
+        </div>
       }
       <p class="hint">
         ASME Y14.5: annotations only; not a compliance claim. Shift-click geometry to select
@@ -147,6 +242,31 @@
           maxlength="100"
         /><button (click)="addLayer()" aria-label="Add layer">+</button>
       </div>
+      <details class="entity-explorer">
+        <summary>Entity explorer · {{ sketch.entities.length }}</summary>
+        @for (item of sketch.entities.slice(0, explorerLimit); track item.id) {
+          <button
+            class="explorer-item"
+            [class.active]="selected === item.id"
+            (click)="inspectEntity(item.id)"
+            [title]="item.id"
+          >
+            <ui-icon [name]="item.type === 'polyline' ? 'rectangle' : item.type" /><span
+              >{{ item.type }}<small>{{ item.id }}</small></span
+            >
+          </button>
+        }
+        @if (sketch.entities.length > explorerLimit) {
+          <button (click)="explorerLimit = explorerLimit + 100">Show next 100 entities</button>
+        }
+      </details>
+      <details class="file-actions">
+        <summary>File actions</summary>
+        <button (click)="fresh()" [disabled]="busy">New drawing</button
+        ><button (click)="demo()" [disabled]="busy">Load example</button
+        ><button (click)="save()">Save in browser</button
+        ><button (click)="restore()">Restore saved drawing</button>
+      </details>
       <div class="note">
         <strong>Geometry you can edit</strong>
         <p>Lines, circles, arcs and straight polylines. Draw rectangles as closed profiles.</p>
@@ -160,19 +280,41 @@
       <div
         #canvas
         class="canvas"
+        [class.pan-cursor]="tool === 'pan'"
+        [class.draw-cursor]="tool !== 'pan' && tool !== 'select'"
         role="application"
         aria-label="DXF drawing canvas. Choose a drawing tool and click two points. Use properties for numeric editing."
       ></div>
+      <div class="viewport-controls" aria-label="Canvas navigation">
+        <button aria-label="Zoom out" title="Zoom out" (click)="zoomBy(1 / 1.15)">
+          <ui-icon name="minus" /></button
+        ><button (click)="fit()" title="Fit drawing"><ui-icon name="fit" />Fit</button
+        ><button aria-label="Zoom in" title="Zoom in" (click)="zoomBy(1.15)">
+          <ui-icon name="plus" />
+        </button>
+      </div>
       <div class="canvas-bottom">
         <span>X {{ cursor[0].toFixed(2) }} &nbsp; Y {{ cursor[1].toFixed(2) }}</span
-        ><span>{{ sketch.units || 'UNITS REQUIRED' }} · {{ zoom.toFixed(2) }} px/unit</span>
+        ><span
+          >{{ sketch.units || 'UNITS REQUIRED' }} · {{ zoom.toFixed(2) }} px/unit · Snap
+          {{ snap ? 'on' : 'off' }}</span
+        >
       </div>
     </div>
-    <aside class="properties">
-      <div class="panel-title">PROPERTIES <span>02</span></div>
+    <aside class="properties" id="properties-panel" [hidden]="!rightPanelOpen">
+      <div class="panel-title">
+        Properties
+        <button
+          class="icon-button"
+          aria-label="Collapse properties"
+          (click)="rightPanelOpen = false"
+        >
+          <ui-icon name="right" />
+        </button>
+      </div>
       @if (currentAnnotation; as a) {
         <div class="entity-type">{{ a.type }} dimension</div>
-        <p class="hint">{{ a.id.slice(0, 8) }} · {{ a.mode }} · revision {{ a.revision }}</p>
+        <p class="hint">{{ a.id }} · {{ a.mode }} · revision {{ a.revision }}</p>
         <label
           >Dimension type<select [ngModel]="a.type" (ngModelChange)="changeDimensionType($event)">
             @for (kind of dimensionTypes; track kind) {
@@ -273,7 +415,15 @@
         </p>
       } @else if (current; as item) {
         <div class="entity-type">{{ item.type }}</div>
-        <p class="hint">{{ item.id.slice(0, 8) }}</p>
+        <p class="hint">
+          <code>{{ item.id }}</code>
+        </p>
+        @for (measurement of propertyMeasurements; track measurement.label) {
+          <p class="property-measurement">
+            <span>{{ measurement.label }}</span
+            ><strong>{{ measurement.value }} {{ sketch.units || '(units required)' }}</strong>
+          </p>
+        }
         <label
           >Layer<select [ngModel]="item.layer" (ngModelChange)="property('layer', $event)">
             @for (layer of geometryLayers; track layer) {
@@ -325,19 +475,11 @@
         }
         <button class="delete" (click)="remove()">Delete entity</button>
       } @else {
-        <div class="selection-empty">
-          <span>⌖</span>
-          <h3>Select an entity</h3>
-          <p>Click geometry with the select tool to inspect and edit exact coordinates.</p>
-        </div>
-      }
-      @if (sketch.warnings.length) {
-        <div class="warnings">
-          <strong>Interchange report</strong>
-          @for (warning of sketch.warnings; track $index) {
-            <p>{{ warning }}</p>
-          }
-        </div>
+        <ui-state
+          [compact]="true"
+          title="Select an entity"
+          text="Click geometry with the Select tool to inspect exact coordinates, dimensions and tolerances."
+        />
       }
       <div class="note">
         <strong>Local workspace</strong>
@@ -349,6 +491,28 @@
     </aside>
   </div>
   <div class="status" role="status">
-    <i></i>{{ message }}<span>{{ busy ? 'PROCESSING' : '2D SKETCH' }}</span>
+    <div class="status-message">
+      <span class="status-dot" [class.processing]="busy"></span>{{ message }}
+    </div>
+    <div class="status-values">
+      <span>X {{ cursor[0].toFixed(2) }} · Y {{ cursor[1].toFixed(2) }}</span
+      ><span>{{ sketch.units || 'Units required' }}</span
+      ><span>{{ zoom.toFixed(2) }} px/unit</span><span>{{ tool }}</span
+      ><span>{{ selectedCount }} selected</span><span>{{ saveStatus }}</span>
+    </div>
   </div>
+  @if (sketch.warnings.length) {
+    <div class="warnings">
+      <strong>Interchange report</strong>
+      @for (warning of sketch.warnings; track $index) {
+        <p>{{ warning }}</p>
+      }
+    </div>
+  }
+  @if (annotationIssues) {
+    <p class="warnings" role="alert">
+      {{ annotationIssues }} dimensions have invalid or missing references. Open Properties to
+      resolve them before export.
+    </p>
+  }
 </div>

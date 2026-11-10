@@ -1,0 +1,69 @@
+<section class="dashboard" aria-label="Dashboard">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Your engineering workspace</p>
+      <h1>From drawing to confident decisions.</h1>
+      <p class="muted">Precise geometry. Explicit tolerances. Traceable results.</p>
+    </div>
+    <button class="ui-button primary" (click)="navigate.emit('dxf')">
+      <ui-icon name="plus" />Open CAD editor
+    </button>
+  </div>
+  <div class="launch-grid">
+    <button class="launch-card" (click)="navigate.emit('dxf')">
+      <span class="card-icon"><ui-icon name="cad" /></span>
+      <h2>Create and inspect geometry</h2>
+      <p>Import a DXF, edit exact coordinates, and add linked dimensions.</p>
+      <span class="launch-link">2D CAD Editor <ui-icon name="right" /></span>
+    </button>
+    <button class="launch-card" (click)="cadAnalysis.emit()">
+      <span class="card-icon teal"><ui-icon name="analysis" /></span>
+      <h2>Understand dimensional variation</h2>
+      <p>Select measurements and compare worst-case and statistical results.</p>
+      <span class="launch-link">Tolerance Analysis <ui-icon name="right" /></span>
+    </button>
+  </div>
+  <div class="section-heading">
+    <div><h2>Current browser workspace</h2></div>
+    <span class="status-badge">Local storage</span>
+  </div>
+  @if (cad.drawing(); as drawing) {
+    <section class="panel drawing-card">
+      <span class="card-icon"><ui-icon name="layers" /></span>
+      <div>
+        <h2>{{ drawing.name }}</h2>
+        <p class="muted">
+          {{ drawing.sketch.entities.length }} entities ·
+          {{ drawing.sketch.annotations.length }} dimensions ·
+          {{ drawing.sketch.units || 'Units required' }} · revision {{ drawing.sketch.revision }}
+        </p>
+        <code>{{ drawing.sketch.drawing_id }}</code>
+      </div>
+      <button class="ui-button" (click)="navigate.emit('dxf')">Open drawing</button>
+    </section>
+  } @else {
+    <ui-state
+      title="Start with a drawing"
+      text="Your current drawing and CAD draft will appear here after you work in the editor."
+      ><button class="ui-button" (click)="navigate.emit('dxf')">Open the editor</button></ui-state
+    >
+  }
+  @if (cad.draft(); as draft) {
+    <section class="panel draft-card">
+      <div>
+        <h2>CAD analysis draft</h2>
+        <p class="muted">
+          {{ cad.selectedRows().length }} selected measurements · source revision
+          {{ draft.extraction.revision }}
+        </p>
+        <span class="status-badge" [attr.data-tone]="cad.stale() ? 'warning' : 'success'">{{
+          cad.stale() ? 'Refresh source drawing' : 'Source revision current'
+        }}</span>
+      </div>
+      <button class="ui-button" (click)="cadAnalysis.emit()">Continue analysis</button>
+    </section>
+  }
+  <p class="muted">
+    Drawings and drafts stay in this browser. No server project repository is configured.
+  </p>
+</section>

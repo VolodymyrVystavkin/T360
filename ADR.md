@@ -55,3 +55,12 @@ No draft database, server GET/PATCH draft routes, multiuser concurrency or revis
 The CAD UI builds a descriptive relationship from selected measurements and signed coefficients, and the server independently generates the same relationship from validated terms in `automatic_relationship` mode. Clicking Calculate submits that combination without a typed formula or routine approval checkboxes. When no rows are selected, the UI selects all valid nonremoved length rows with both tolerance bounds; it never supplies missing tolerances. All coefficients retain their displayed values (new rows default to +1); assembly topology and subtraction signs are not inferred from geometry. The UI explains these semantics and offers an explicit select-all-specified action.
 
 Source revisions/signatures, finite bounds, supported units and geometry remain validated. Changed sources and dimension text overrides still require conditional review. Statistical assumptions remain explicitly opt-in. Existing manual API clients retain the original approval requirements by omitting `automatic_relationship` or setting it false.
+
+## ADR-004 — Original token-based T360 presentation system
+
+**Date:** 2026-11-10
+**Status:** Implemented for the explicitly requested UI redesign.
+
+Use semantic CSS variables, the existing Angular Material library, local SVG icons and standalone shell/state components. Preserve the existing engineering components/services instead of replacing the editor or calculation workflows. A light indigo application shell surrounds a dark technical canvas. Adobe Express is a high-level quality reference; no branding, proprietary assets or exact interface layouts are copied.
+
+Keep display preferences in their own browser storage key. Only implemented routes are enabled; Dashboard and Settings are real local pages, while future 3D/AI workspaces are visibly disabled. CSS presentation tokens reach Konva through a read-only adapter. Geometry models, serialized annotation styles, units, IDs, backend routes and calculation formulas remain untouched. Explicit engineering warning and statistical-assumption behavior is preserved. Contrast-aware secondary text/control tokens refine the proposed palette, and reduced motion follows both system and user preferences. See the [design guide](docs/ui-design-system.md).

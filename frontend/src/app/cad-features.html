@@ -1,98 +1,517 @@
 @if (cad.draft(); as d) {
-<section class="cad-workspace" aria-label="Imported CAD Features">
-  <fieldset [disabled]="busy()">
-  <section class="panel">
-  <div class="section-heading"><div><span class="step">01</span><h2>Imported CAD Features</h2></div><span class="muted">Geometry layer · drawing units</span></div>
-  <p class="muted provenance">Drawing {{ d.extraction.drawing_id }} · revision {{ d.extraction.revision }} · {{ d.extraction.units || 'UNSPECIFIED UNITS' }}</p>
-  <details class="help"><summary>Feature measurements and tolerances</summary><p>Only figures on the Geometry layer are used. Dimensions are included only when all referenced figures are on Geometry.</p>
-  <p>Choose a measurement row for each feature. Radius, diameter, perimeter and projected dimensions have different engineering meanings. Geometry alone supplies no manufacturing tolerance. Tolerance fields use the drawing units.</p></details>
-  @if (cad.stale()) { <p role="alert">Drawing revision changed. Refresh and review before calculating.</p> }
-  @if (!d.extraction.units) { <p role="alert">Assign units explicitly in the editor before calculation. Coordinates will retain their numeric values.</p> }
-  <div class="toolbar"><button mat-stroked-button type="button" (click)="refresh()" [disabled]="busy()">Refresh from current drawing</button>
-  <button mat-stroked-button type="button" (click)="openEditor.emit()">Open DXF Editor</button></div>
-  <details class="help"><summary>Extraction warnings</summary>@for (warning of d.extraction.warnings; track $index) { <p>{{ warning }}</p> }</details>
-  <div class="scroll"><table><thead><tr><th>Select</th><th>Entity ID / type / layer</th><th>Feature name / measurement type</th><th>Nominal / units</th><th>Upper +</th><th>Lower −</th><th>Coefficient</th><th>Source / validation</th><th>Actions</th></tr></thead><tbody>
-  @for (row of d.rows; track row.feature.id) {
-    @if (!row.removed && cad.isGeometryFeature(row.feature)) {
-    <tr>
-      <td><input type="checkbox" [attr.aria-label]="'Select ' + row.name" [(ngModel)]="row.selected" (ngModelChange)="changed()" [disabled]="row.feature.status.startsWith('Invalid') || row.feature.units === 'deg'"></td>
-      <td>{{ row.feature.entity_ids.join(', ') }}<br>{{ row.feature.entity_type }} · {{ row.feature.layer }}<br>Handle: {{ row.feature.source_handle || 'native edit' }}</td>
-      <td><input matInput aria-label="Feature name" [(ngModel)]="row.name" maxlength="100" (ngModelChange)="changed()">
-        <span class="measurement-type" [title]="row.feature.measurement">
-          <svg class="measurement-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path [attr.d]="measurementIcon(row.feature.measurement)" /></svg>
-          {{ row.feature.measurement }}
-        </span>
-      </td>
-      <td>{{ row.feature.nominal | number:'1.2-6' }} {{ row.feature.units || '?' }}</td>
-      <td><input matInput aria-label="Upper tolerance" type="number" min="0" step="any" [(ngModel)]="row.plus" (ngModelChange)="row.reviewed = false; changed()" placeholder="Missing"></td>
-      <td><input matInput aria-label="Lower tolerance" type="number" min="0" step="any" [(ngModel)]="row.minus" (ngModelChange)="row.reviewed = false; changed()" placeholder="Missing"></td>
-      <td><input matInput aria-label="Signed coefficient" type="number" step="any" [(ngModel)]="row.coefficient" (ngModelChange)="changed()"></td>
-      <td>{{ row.feature.source === 'dimension' ? 'Explicit drawing dimension' : 'Derived geometry' }}<br>{{ row.feature.status }}
-        @if (row.plus !== row.feature.plus || row.minus !== row.feature.minus) { <br>User-entered tolerance }
-        @if (row.changed) { <br>Changed source: review required }
-        @if (row.feature.displayed_value) { <br>Text override: {{ row.feature.displayed_value }} · measured value retained }
-      </td>
-      <td>@if (row.changed || row.feature.displayed_value) { <label><input type="checkbox" [(ngModel)]="row.reviewed" (ngModelChange)="changed()">Changed source / override reviewed</label> }
-        <button mat-button type="button" (click)="source(row)">{{ row.feature.annotation_id ? 'View original annotation' : 'Highlight geometry' }}</button>
-        <button mat-button type="button" (click)="row.removed = true; row.selected = false; changed()">Remove from analysis</button></td>
-    </tr>
-    }
-  }
-  </tbody></table></div>
-  <p class="muted">The relationship is built automatically from selected measurements and their coefficients. +1 adds a measurement; −1 subtracts it. With no selection, Calculate uses all available features with specified tolerances. This adds the chosen measurements; it does not infer an assembly clearance from geometry.</p>
-  <button mat-button type="button" (click)="selectSpecified()">Select all features with tolerances</button>
-  <button mat-button type="button" (click)="restoreRows()">Show removed features</button>
-  </section>
-  <section class="panel settings">
-    <div class="section-heading"><div><span class="step">02</span><h2>Set analysis parameters</h2></div></div>
-    <div class="relationship-row">
-      <p class="relationship" aria-live="polite"><span class="eyebrow">AUTOMATIC RELATIONSHIP</span>{{ cad.relationship() }}</p>
-      <mat-form-field appearance="outline"><mat-label>Result units</mat-label><select matNativeControl [(ngModel)]="d.units" (ngModelChange)="changed()">@for (unit of ['mm','cm','m','in','ft']; track unit) { <option [value]="unit">{{ unit }}</option> }</select></mat-form-field>
-    </div>
-    <div class="parameters">
-      <mat-form-field appearance="outline"><mat-label>Lower specification</mat-label><input matInput type="number" step="any" [(ngModel)]="d.lower" (ngModelChange)="changed()"></mat-form-field>
-      <mat-form-field appearance="outline"><mat-label>Upper specification</mat-label><input matInput type="number" step="any" [(ngModel)]="d.upper" (ngModelChange)="changed()"></mat-form-field>
-      <mat-form-field appearance="outline"><mat-label>Monte Carlo samples</mat-label><input matInput type="number" [(ngModel)]="d.samples" (ngModelChange)="changed()" min="100" max="200000"></mat-form-field>
-      <mat-form-field appearance="outline"><mat-label>Random seed</mat-label><input matInput type="number" [(ngModel)]="d.seed" (ngModelChange)="changed()" min="0"></mat-form-field>
-    </div>
-    <label class="assumptions"><input type="checkbox" [(ngModel)]="d.statistics" (ngModelChange)="changed()">I assume independent uniform deviations within the entered bounds. Include seeded Monte Carlo and RSS as a tolerance index (not a confidence interval).</label>
-    <div class="run-row"><p>Geometry-linked dimensions · Reproducible with a fixed seed</p><button mat-flat-button type="button" (click)="run()" [disabled]="busy() || cad.stale() || !d.extraction.units">{{ busy() ? 'Analyzing…' : 'Calculate tolerances →' }}</button></div>
-  </section>
-  @if (error()) { <p role="alert">{{ error() }}</p> }
-  @if (result(); as calculation) {
-    <div class="cad-results" aria-live="polite">
-      <div class="results-heading"><div><p class="eyebrow">03 / ANALYSIS RESULTS</p><h2>Variation, made visible.</h2></div><button mat-stroked-button type="button" (click)="export()">Export result and source trace ↓</button></div>
-      <p class="muted">Tolerance calculation · revision {{ calculation.revision }} · {{ calculation.units }}</p>
-      <p class="muted">{{ calculation.relationship }}</p>
-      <div class="cad-metrics">
-        <article><span>Nominal stack</span><strong>{{ calculation.result.nominal | number:'1.3-6' }}</strong><small>{{ calculation.units }}</small></article>
-        <article><span>Worst-case minimum</span><strong>{{ calculation.result.worst_case.lower | number:'1.3-6' }}</strong><small>{{ calculation.units }}</small></article>
-        <article><span>Worst-case maximum</span><strong>{{ calculation.result.worst_case.upper | number:'1.3-6' }}</strong><small>{{ calculation.units }}</small></article>
-        @if (calculation.result.monte_carlo; as mc) { <article class="yield"><span>Simulated yield</span><strong>{{ mc.yield_percent | number:'1.2-2' }}%</strong><small>Within specification limits</small></article> }
-      </div>
-      <section class="cad-chart" aria-label="Tolerance intervals compared with specification limits">
-        <h4>Tolerance ranges</h4>
-        <p>All ranges use the same scale in {{ calculation.units }}. The shaded band shows your specification limits.</p>
-        <div class="interval-row"><span>Specification</span><div class="interval-track"><i class="interval-band specification" [style.left.%]="chartPosition(calculation, d.lower)" [style.width.%]="chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)"></i></div><span>{{ d.lower | number:'1.3-6' }} to {{ d.upper | number:'1.3-6' }}</span></div>
-        <div class="interval-row"><span>Worst case</span><div class="interval-track"><i class="interval-band specification" [style.left.%]="chartPosition(calculation, d.lower)" [style.width.%]="chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)"></i><i class="interval-band worst" [style.left.%]="chartPosition(calculation, calculation.result.worst_case.lower)" [style.width.%]="chartPosition(calculation, calculation.result.worst_case.upper) - chartPosition(calculation, calculation.result.worst_case.lower)"></i><i class="nominal-marker" [style.left.%]="chartPosition(calculation, calculation.result.nominal)"></i></div><span>{{ calculation.result.worst_case.lower | number:'1.3-6' }} to {{ calculation.result.worst_case.upper | number:'1.3-6' }}</span></div>
-        @if (calculation.result.rss; as rss) { <div class="interval-row"><span>RSS index</span><div class="interval-track"><i class="interval-band specification" [style.left.%]="chartPosition(calculation, d.lower)" [style.width.%]="chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)"></i><i class="interval-band rss" [style.left.%]="chartPosition(calculation, rss.lower)" [style.width.%]="chartPosition(calculation, rss.upper) - chartPosition(calculation, rss.lower)"></i></div><span>{{ rss.lower | number:'1.3-6' }} to {{ rss.upper | number:'1.3-6' }}</span></div> }
-        @if (calculation.result.monte_carlo; as mc) { <div class="interval-row"><span>Monte Carlo 95%</span><div class="interval-track"><i class="interval-band specification" [style.left.%]="chartPosition(calculation, d.lower)" [style.width.%]="chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)"></i><i class="interval-band simulation" [style.left.%]="chartPosition(calculation, mc.p025)" [style.width.%]="chartPosition(calculation, mc.p975) - chartPosition(calculation, mc.p025)"></i></div><span>{{ mc.p025 | number:'1.3-6' }} to {{ mc.p975 | number:'1.3-6' }}</span></div> }
-        <p class="chart-note">The vertical marker is the nominal stack. RSS is a tolerance index, not a confidence interval. Monte Carlo shows the central 95% sample interval.</p>
-      </section>
-      @if (calculation.result.monte_carlo; as mc) {
-        <section class="cad-chart"><h4>Monte Carlo distribution</h4>
-          <div class="cad-histogram" role="img" [attr.aria-label]="'Histogram of ' + mc.samples + ' CAD stack simulations, from ' + mc.minimum + ' to ' + mc.maximum + ' ' + calculation.units">
-            @for (count of mc.counts; track $index; let i = $index) { <div [style.height.%]="barHeight(count, mc.counts)" [title]="mc.bin_edges[i] + ' to ' + mc.bin_edges[i + 1] + ' ' + calculation.units + ': ' + count + ' samples'"></div> }
+  <section class="cad-workspace" [attr.aria-busy]="busy()" aria-label="Imported CAD Features">
+    <fieldset [disabled]="busy()">
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <span class="step">01</span>
+            <h2>Imported CAD Features</h2>
           </div>
-          <div class="histogram-axis"><span>{{ mc.bin_edges[0] | number:'1.3-6' }}</span><span>{{ calculation.units }}</span><span>{{ mc.bin_edges[mc.bin_edges.length - 1] | number:'1.3-6' }}</span></div>
-          <p>Mean {{ mc.mean | number:'1.3-6' }} · Standard deviation {{ mc.standard_deviation | number:'1.3-6' }} · {{ mc.samples }} samples · seed {{ mc.seed }}</p>
-        </section>
-      } @else { <p>Enable the independent uniform statistical assumptions above to also visualize RSS and Monte Carlo.</p> }
-      <section class="panel insights"><p class="eyebrow">ENGINEERING INSIGHTS</p><h3>What your stack tells you</h3>@for (insight of calculation.result.insights; track $index) { <p class="insight">{{ insight }}</p> }</section>
-      <details><summary>Calculation trace</summary><pre>{{ calculation | json }}</pre></details>
-    </div>
-  }
-  </fieldset>
-</section>
+          <span class="muted">Geometry layer · drawing units</span>
+        </div>
+        <p class="muted provenance">
+          Drawing {{ d.extraction.drawing_id }} · revision {{ d.extraction.revision }} ·
+          {{ d.extraction.units || 'UNSPECIFIED UNITS' }}
+        </p>
+        <details class="help">
+          <summary>Feature measurements and tolerances</summary>
+          <p>
+            Only figures on the Geometry layer are used. Dimensions are included only when all
+            referenced figures are on Geometry.
+          </p>
+          <p>
+            Choose a measurement row for each feature. Radius, diameter, perimeter and projected
+            dimensions have different engineering meanings. Geometry alone supplies no manufacturing
+            tolerance. Tolerance fields use the drawing units.
+          </p>
+        </details>
+        @if (cad.stale()) {
+          <p role="alert">Drawing revision changed. Refresh and review before calculating.</p>
+        }
+        @if (!d.extraction.units) {
+          <p role="alert">
+            Assign units explicitly in the editor before calculation. Coordinates will retain their
+            numeric values.
+          </p>
+        }
+        <div class="toolbar">
+          <button mat-stroked-button type="button" (click)="refresh()" [disabled]="busy()">
+            Refresh from current drawing
+          </button>
+          <button mat-stroked-button type="button" (click)="openEditor.emit()">
+            Open DXF Editor
+          </button>
+        </div>
+        <details class="help" [open]="d.extraction.warnings.length > 0">
+          <summary>Extraction warnings</summary>
+          @for (warning of d.extraction.warnings; track $index) {
+            <p>{{ warning }}</p>
+          }
+        </details>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Select</th>
+                <th>Entity ID / type / layer</th>
+                <th>Feature name / measurement type</th>
+                <th>Nominal / units</th>
+                <th>Upper +</th>
+                <th>Lower −</th>
+                <th>Coefficient</th>
+                <th>Source / validation</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of d.rows; track row.feature.id) {
+                @if (!row.removed && cad.isGeometryFeature(row.feature)) {
+                  <tr [class.selected-row]="row.selected">
+                    <td>
+                      <input
+                        type="checkbox"
+                        [attr.aria-label]="'Select ' + row.name"
+                        [(ngModel)]="row.selected"
+                        (ngModelChange)="changed()"
+                        [disabled]="
+                          row.feature.status.startsWith('Invalid') || row.feature.units === 'deg'
+                        "
+                      />
+                    </td>
+                    <td>
+                      <code class="source-id">{{ row.feature.entity_ids.join(', ') }}</code
+                      ><br />{{ row.feature.entity_type }} · {{ row.feature.layer }}<br />Handle:
+                      {{ row.feature.source_handle || 'native edit' }}
+                    </td>
+                    <td>
+                      <input
+                        matInput
+                        aria-label="Feature name"
+                        [(ngModel)]="row.name"
+                        maxlength="100"
+                        (ngModelChange)="changed()"
+                      />
+                      <span class="measurement-type" [title]="row.feature.measurement">
+                        <svg
+                          class="measurement-icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <path [attr.d]="measurementIcon(row.feature.measurement)" />
+                        </svg>
+                        {{ row.feature.measurement }}
+                      </span>
+                    </td>
+                    <td class="numeric">
+                      {{ row.feature.nominal | number: '1.2-6' }} {{ row.feature.units || '?' }}
+                    </td>
+                    <td>
+                      <input
+                        matInput
+                        [class.missing]="row.plus === null"
+                        [attr.aria-invalid]="row.selected && row.plus === null"
+                        aria-label="Upper tolerance"
+                        type="number"
+                        min="0"
+                        step="any"
+                        [(ngModel)]="row.plus"
+                        (ngModelChange)="row.reviewed = false; changed()"
+                        placeholder="Missing"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        matInput
+                        [class.missing]="row.minus === null"
+                        [attr.aria-invalid]="row.selected && row.minus === null"
+                        aria-label="Lower tolerance"
+                        type="number"
+                        min="0"
+                        step="any"
+                        [(ngModel)]="row.minus"
+                        (ngModelChange)="row.reviewed = false; changed()"
+                        placeholder="Missing"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        matInput
+                        aria-label="Signed coefficient"
+                        type="number"
+                        step="any"
+                        [(ngModel)]="row.coefficient"
+                        (ngModelChange)="changed()"
+                      />
+                    </td>
+                    <td>
+                      {{
+                        row.feature.source === 'dimension'
+                          ? 'Explicit drawing dimension'
+                          : 'Derived geometry'
+                      }}<br /><span
+                        class="status-badge"
+                        [attr.data-tone]="
+                          row.feature.status.startsWith('Invalid')
+                            ? 'error'
+                            : row.plus === null ||
+                                row.minus === null ||
+                                row.changed ||
+                                row.feature.displayed_value
+                              ? 'warning'
+                              : 'success'
+                        "
+                        >{{ featureStatus(row) }}</span
+                      >
+                      @if (row.plus !== row.feature.plus || row.minus !== row.feature.minus) {
+                        <br />User-entered tolerance
+                      }
+                      @if (row.changed) {
+                        <br />Changed source: review required
+                      }
+                      @if (row.feature.displayed_value) {
+                        <br />Text override: {{ row.feature.displayed_value }} · measured value
+                        retained
+                      }
+                    </td>
+                    <td>
+                      @if (row.changed || row.feature.displayed_value) {
+                        <label
+                          ><input
+                            type="checkbox"
+                            [(ngModel)]="row.reviewed"
+                            (ngModelChange)="changed()"
+                          />Changed source / override reviewed</label
+                        >
+                      }
+                      <button mat-button type="button" (click)="source(row)">
+                        {{
+                          row.feature.annotation_id
+                            ? 'View original annotation'
+                            : 'Highlight geometry'
+                        }}
+                      </button>
+                      <button
+                        mat-button
+                        type="button"
+                        (click)="row.removed = true; row.selected = false; changed()"
+                      >
+                        Remove from analysis
+                      </button>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">
+          The relationship is built automatically from selected measurements and their coefficients.
+          +1 adds a measurement; −1 subtracts it. With no selection, Calculate uses all available
+          features with specified tolerances. This adds the chosen measurements; it does not infer
+          an assembly clearance from geometry.
+        </p>
+        <button mat-button type="button" (click)="selectSpecified()">
+          Select all features with tolerances
+        </button>
+        <button mat-button type="button" (click)="restoreRows()">Show removed features</button>
+      </section>
+      <section class="panel settings">
+        <div class="section-heading">
+          <div>
+            <span class="step">02</span>
+            <h2>Set analysis parameters</h2>
+          </div>
+        </div>
+        <div class="relationship-row">
+          <p class="relationship" aria-live="polite">
+            <span class="eyebrow">Stack-up configuration</span>{{ cad.relationship() }}
+          </p>
+          <mat-form-field appearance="outline"
+            ><mat-label>Result units</mat-label
+            ><select matNativeControl [(ngModel)]="d.units" (ngModelChange)="changed()">
+              @for (unit of ['mm', 'cm', 'm', 'in', 'ft']; track unit) {
+                <option [value]="unit">{{ unit }}</option>
+              }
+            </select></mat-form-field
+          >
+        </div>
+        <div class="parameters">
+          <mat-form-field appearance="outline"
+            ><mat-label>Lower specification</mat-label
+            ><input
+              matInput
+              type="number"
+              step="any"
+              [(ngModel)]="d.lower"
+              (ngModelChange)="changed()"
+          /></mat-form-field>
+          <mat-form-field appearance="outline"
+            ><mat-label>Upper specification</mat-label
+            ><input
+              matInput
+              type="number"
+              step="any"
+              [(ngModel)]="d.upper"
+              (ngModelChange)="changed()"
+          /></mat-form-field>
+          <mat-form-field appearance="outline"
+            ><mat-label>Monte Carlo samples</mat-label
+            ><input
+              matInput
+              type="number"
+              [(ngModel)]="d.samples"
+              (ngModelChange)="changed()"
+              min="100"
+              max="200000"
+          /></mat-form-field>
+          <mat-form-field appearance="outline"
+            ><mat-label>Random seed</mat-label
+            ><input matInput type="number" [(ngModel)]="d.seed" (ngModelChange)="changed()" min="0"
+          /></mat-form-field>
+        </div>
+        <div class="assumptions-block">
+          <h3>Engineering assumptions</h3>
+          <label class="assumptions"
+            ><input type="checkbox" [(ngModel)]="d.statistics" (ngModelChange)="changed()" />I
+            assume independent uniform deviations within the entered bounds. Include seeded Monte
+            Carlo and RSS as a tolerance index (not a confidence interval).</label
+          >
+        </div>
+        <div class="run-row">
+          <p>Dimensions linked to geometry · Reproducible with a fixed seed</p>
+          <button
+            mat-flat-button
+            type="button"
+            (click)="run()"
+            [disabled]="busy() || cad.stale() || !d.extraction.units"
+          >
+            {{ busy() ? 'Analyzing…' : 'Calculate tolerances →' }}
+          </button>
+        </div>
+      </section>
+      @if (busy()) {
+        <ui-state
+          kind="loading"
+          title="Calculating tolerance stack"
+          text="Validating source references and running the selected analysis methods."
+        />
+      }
+      @if (error()) {
+        <ui-state kind="error" title="Check the analysis inputs" [text]="error()" />
+      }
+      @if (result(); as calculation) {
+        <div class="cad-results" aria-live="polite">
+          <div class="results-heading">
+            <div>
+              <p class="eyebrow">Analysis results</p>
+              <h2>Understand your tolerance stack.</h2>
+            </div>
+            <button mat-stroked-button type="button" (click)="export()">
+              Export result and source trace ↓
+            </button>
+          </div>
+          <p class="muted">
+            Tolerance calculation · revision {{ calculation.revision }} · {{ calculation.units }}
+          </p>
+          <p class="muted">{{ calculation.relationship }}</p>
+          <div class="cad-metrics">
+            <article>
+              <span>Nominal stack</span
+              ><strong>{{ calculation.result.nominal | number: '1.3-6' }}</strong
+              ><small>{{ calculation.units }}</small>
+            </article>
+            <article>
+              <span>Worst-case minimum</span
+              ><strong>{{ calculation.result.worst_case.lower | number: '1.3-6' }}</strong
+              ><small>{{ calculation.units }}</small>
+            </article>
+            <article>
+              <span>Worst-case maximum</span
+              ><strong>{{ calculation.result.worst_case.upper | number: '1.3-6' }}</strong
+              ><small>{{ calculation.units }}</small>
+            </article>
+            @if (calculation.result.monte_carlo; as mc) {
+              <article class="yield">
+                <span>Simulated yield</span
+                ><strong>{{ mc.yield_percent | number: '1.2-2' }}%</strong
+                ><small>Within specification limits</small>
+              </article>
+            }
+          </div>
+          <section
+            class="cad-chart"
+            aria-label="Tolerance intervals compared with specification limits"
+          >
+            <h4>Worst-case & statistical analysis</h4>
+            <p>Tolerance ranges</p>
+            <p>
+              All ranges use the same scale in {{ calculation.units }}. The shaded band shows your
+              specification limits.
+            </p>
+            <div class="interval-row">
+              <span>Specification</span>
+              <div class="interval-track">
+                <i
+                  class="interval-band specification"
+                  [style.left.%]="chartPosition(calculation, d.lower)"
+                  [style.width.%]="
+                    chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)
+                  "
+                ></i>
+              </div>
+              <span>{{ d.lower | number: '1.3-6' }} to {{ d.upper | number: '1.3-6' }}</span>
+            </div>
+            <div class="interval-row">
+              <span>Worst case</span>
+              <div class="interval-track">
+                <i
+                  class="interval-band specification"
+                  [style.left.%]="chartPosition(calculation, d.lower)"
+                  [style.width.%]="
+                    chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)
+                  "
+                ></i
+                ><i
+                  class="interval-band worst"
+                  [style.left.%]="chartPosition(calculation, calculation.result.worst_case.lower)"
+                  [style.width.%]="
+                    chartPosition(calculation, calculation.result.worst_case.upper) -
+                    chartPosition(calculation, calculation.result.worst_case.lower)
+                  "
+                ></i
+                ><i
+                  class="nominal-marker"
+                  [style.left.%]="chartPosition(calculation, calculation.result.nominal)"
+                ></i>
+              </div>
+              <span
+                >{{ calculation.result.worst_case.lower | number: '1.3-6' }} to
+                {{ calculation.result.worst_case.upper | number: '1.3-6' }}</span
+              >
+            </div>
+            @if (calculation.result.rss; as rss) {
+              <div class="interval-row">
+                <span>RSS index</span>
+                <div class="interval-track">
+                  <i
+                    class="interval-band specification"
+                    [style.left.%]="chartPosition(calculation, d.lower)"
+                    [style.width.%]="
+                      chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)
+                    "
+                  ></i
+                  ><i
+                    class="interval-band rss"
+                    [style.left.%]="chartPosition(calculation, rss.lower)"
+                    [style.width.%]="
+                      chartPosition(calculation, rss.upper) - chartPosition(calculation, rss.lower)
+                    "
+                  ></i>
+                </div>
+                <span>{{ rss.lower | number: '1.3-6' }} to {{ rss.upper | number: '1.3-6' }}</span>
+              </div>
+            }
+            @if (calculation.result.monte_carlo; as mc) {
+              <div class="interval-row">
+                <span>Monte Carlo 95%</span>
+                <div class="interval-track">
+                  <i
+                    class="interval-band specification"
+                    [style.left.%]="chartPosition(calculation, d.lower)"
+                    [style.width.%]="
+                      chartPosition(calculation, d.upper) - chartPosition(calculation, d.lower)
+                    "
+                  ></i
+                  ><i
+                    class="interval-band simulation"
+                    [style.left.%]="chartPosition(calculation, mc.p025)"
+                    [style.width.%]="
+                      chartPosition(calculation, mc.p975) - chartPosition(calculation, mc.p025)
+                    "
+                  ></i>
+                </div>
+                <span>{{ mc.p025 | number: '1.3-6' }} to {{ mc.p975 | number: '1.3-6' }}</span>
+              </div>
+            }
+            <p class="chart-note">
+              The vertical marker is the nominal stack. RSS is a tolerance index, not a confidence
+              interval. Monte Carlo shows the central 95% sample interval.
+            </p>
+          </section>
+          @if (calculation.result.monte_carlo; as mc) {
+            <section class="cad-chart">
+              <h4>Monte Carlo distribution</h4>
+              <div
+                class="cad-histogram"
+                role="img"
+                [attr.aria-label]="
+                  'Histogram of ' +
+                  mc.samples +
+                  ' CAD stack simulations, from ' +
+                  mc.minimum +
+                  ' to ' +
+                  mc.maximum +
+                  ' ' +
+                  calculation.units
+                "
+              >
+                @for (count of mc.counts; track $index; let i = $index) {
+                  <div
+                    [style.height.%]="barHeight(count, mc.counts)"
+                    [title]="
+                      mc.bin_edges[i] +
+                      ' to ' +
+                      mc.bin_edges[i + 1] +
+                      ' ' +
+                      calculation.units +
+                      ': ' +
+                      count +
+                      ' samples'
+                    "
+                  ></div>
+                }
+              </div>
+              <div class="histogram-axis">
+                <span>{{ mc.bin_edges[0] | number: '1.3-6' }}</span
+                ><span>{{ calculation.units }}</span
+                ><span>{{ mc.bin_edges[mc.bin_edges.length - 1] | number: '1.3-6' }}</span>
+              </div>
+              <p>
+                Mean {{ mc.mean | number: '1.3-6' }} · Standard deviation
+                {{ mc.standard_deviation | number: '1.3-6' }} · {{ mc.samples }} samples · seed
+                {{ mc.seed }}
+              </p>
+            </section>
+          } @else {
+            <p>
+              Enable the independent uniform statistical assumptions above to also visualize RSS and
+              Monte Carlo.
+            </p>
+          }
+          <section class="panel insights">
+            <p class="eyebrow">ENGINEERING INSIGHTS</p>
+            <h3>Sensitivity & engineering insights</h3>
+            @for (insight of calculation.result.insights; track $index) {
+              <p class="insight">{{ insight }}</p>
+            }
+          </section>
+          <details class="report">
+            <summary>Calculation report · inputs & source trace</summary>
+            <pre tabindex="0" aria-label="Calculation inputs, results and source trace">{{
+              calculation | json
+            }}</pre>
+          </details>
+        </div>
+      }
+    </fieldset>
+  </section>
 }
-@if (cad.storageError()) { <p role="alert">{{ cad.storageError() }}</p> }
+@if (cad.storageError()) {
+  <p role="alert">{{ cad.storageError() }}</p>
+}

@@ -1,0 +1,110 @@
+<header class="workbench-header">
+  <div class="menu-bar">
+    <button
+      type="button"
+      class="brand"
+      aria-label="T360 dashboard"
+      (click)="goWorkspace('dashboard')"
+    >
+      <span class="logo-mark">T</span>Tolerance <strong>360</strong>
+    </button>
+    <nav class="app-menu" aria-label="Application menu">
+      <details name="workbench-menu">
+        <summary>File</summary>
+        <div class="dropdown">
+          <button type="button" (click)="goWorkspace('dxf')">Open DXF editor</button>
+          <button type="button" (click)="chooseTab('cad')">Open imported CAD analysis</button>
+        </div>
+      </details>
+      <details name="workbench-menu">
+        <summary>Workspace</summary>
+        <div class="dropdown">
+          <button type="button" (click)="goWorkspace('dxf')">2D DXF editor</button>
+          <button type="button" (click)="chooseTab('cad')">Imported CAD Features</button>
+          <button type="button" (click)="chooseTab('manual')">Manual stack</button>
+        </div>
+      </details>
+      <button
+        type="button"
+        [attr.aria-expanded]="helpOpen()"
+        aria-controls="workbench-help"
+        (click)="helpOpen.set(!helpOpen())"
+      >
+        Help
+      </button>
+    </nav>
+    <div class="project-context">
+      <span>{{ context() }}</span
+      ><small>{{ saveStatus() }}</small>
+    </div>
+    <button type="button" class="ui-button primary open-editor" (click)="goWorkspace('dxf')">
+      <ui-icon name="cad" />Open editor
+    </button>
+  </div>
+  <div class="document-bar">
+    @if (workspace() === 'tolerance') {
+      <div class="analysis-tabs" role="tablist" aria-label="Analysis source">
+        <button
+          id="cad-tab"
+          type="button"
+          role="tab"
+          [attr.aria-selected]="analysisTab() === 'cad'"
+          [attr.tabindex]="analysisTab() === 'cad' ? 0 : -1"
+          aria-controls="cad-analysis-panel"
+          (keydown.arrowright)="chooseTab('manual', true); $event.preventDefault()"
+          (keydown.arrowleft)="chooseTab('manual', true); $event.preventDefault()"
+          (click)="chooseTab('cad')"
+        >
+          <ui-icon name="layers" />Imported CAD Features
+        </button>
+        <button
+          id="manual-tab"
+          type="button"
+          role="tab"
+          [attr.aria-selected]="analysisTab() === 'manual'"
+          [attr.tabindex]="analysisTab() === 'manual' ? 0 : -1"
+          aria-controls="manual-analysis-panel"
+          (keydown.arrowright)="chooseTab('cad', true); $event.preventDefault()"
+          (keydown.arrowleft)="chooseTab('cad', true); $event.preventDefault()"
+          (click)="chooseTab('manual')"
+        >
+          <ui-icon name="analysis" />Manual stack
+        </button>
+      </div>
+    } @else if (workspace() === 'dxf') {
+      <span class="drawing-tab"
+        ><span class="document-icon" aria-hidden="true">◇</span>{{ context()
+        }}<small>DXF</small></span
+      >
+    }
+    @if (workspace() === 'dashboard' || workspace() === 'settings') {
+      <span class="workspace-title">{{
+        workspace() === 'dashboard' ? 'Workspace overview' : 'Display preferences'
+      }}</span>
+    }
+    <span class="document-hint">{{
+      workspace() === 'dxf'
+        ? 'Model space · XY plane'
+        : workspace() === 'tolerance'
+          ? 'Signed 1D analysis'
+          : 'T360 engineering workspace'
+    }}</span>
+  </div>
+  @if (helpOpen()) {
+    <aside id="workbench-help" aria-label="Workflow help">
+      <button
+        type="button"
+        class="close-help"
+        aria-label="Close help"
+        (click)="helpOpen.set(false)"
+      >
+        ×</button
+      ><strong>Drawing to analysis</strong>
+      <p>
+        Open the DXF editor, import or edit a drawing, then click Analyze Tolerances. In Imported
+        CAD Features, choose measurements, enter tolerance bounds and calculate. Use Manual stack to
+        enter dimensions directly.
+      </p>
+    </aside>
+  }
+</header>

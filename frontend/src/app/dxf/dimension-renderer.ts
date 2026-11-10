@@ -1,4 +1,5 @@
 import Konva from 'konva';
+import { cadTheme } from '../ui/canvas-theme';
 import { Annotation, Entity, Point } from './model';
 import { annotationText, angleGeometry, linearPoints } from './annotations';
 
@@ -10,14 +11,17 @@ export function dimensionGroup(
   selected: boolean,
   move: (delta: Point) => void,
   begin: () => void,
+  theme = cadTheme(),
 ): Konva.Group {
   const group = new Konva.Group({ draggable: true, annotationId: a.id });
   const color =
     a.status !== 'valid' || a.text_override !== null
-      ? '#ff977d'
+      ? theme.warning
       : selected
-        ? '#fff2c5'
-        : a.style.color;
+        ? theme.selected
+        : a.style.color.toLowerCase() === '#f2cc7a'
+          ? theme.dimension
+          : a.style.color;
   const options = {
     stroke: color,
     strokeWidth: selected ? 2 : 1,
@@ -101,7 +105,7 @@ export function dimensionGroup(
   const text = new Konva.Text({
     text: annotationText(a),
     fontSize,
-    fontFamily: 'Arial',
+    fontFamily: 'Consolas, monospace',
     fill: color,
     padding: 4,
     annotationId: a.id,
@@ -113,7 +117,7 @@ export function dimensionGroup(
       y: text.y(),
       width: text.width(),
       height: text.height(),
-      fill: '#192730',
+      fill: theme.background,
       opacity: 0.95,
       stroke: selected ? color : undefined,
       annotationId: a.id,

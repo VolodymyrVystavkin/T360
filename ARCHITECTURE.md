@@ -473,3 +473,9 @@ Supported sources include XY LINE/CIRCLE/ARC, straight LWPOLYLINE/2D POLYLINE, b
 
 
 The subsequent automatic relationship workflow (ADR-003) generates the signed formula from current selected rows and coefficients. Calculation with no selection selects available valid features with explicit tolerance bounds. Routine formula/specification approval gates are removed from this UI at the user's request; changed-source/override review and engineering validation remain. Server automatic mode constructs the relationship from validated terms; legacy manual API mode retains its prior contract.
+
+## Implemented presentation system (2026-11-10)
+
+The Angular shell now uses `WorkbenchHeader`, a workspace navigation rail and real browser-local Dashboard/Settings pages. Existing `#dxf`/`#tolerance` navigation remains valid. `design-tokens.scss` centralizes semantic colors, typography, contrast-aware control/feedback states, spacing and motion. Shared SVG icons, empty/loading/error states and scoped control primitives complement the existing Angular Material controls. UI preferences are isolated from native drawing/draft storage.
+
+The existing CAD editor remains authoritative for geometry. Collapsible panels, entity exploration, hover cues, view-only zoom buttons and save-status display are presentation additions. A CSS-to-Konva adapter supplies rendering colors without changing native entity/annotation serialization. Existing tolerance services and FastAPI contracts are unchanged. See [UI design system and limitations](docs/ui-design-system.md).

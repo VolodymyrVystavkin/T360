@@ -178,3 +178,57 @@ describe('DXF sketch editing', () => {
     localStorage.removeItem('t360-sketch');
   });
 });
+
+describe('CAD presentation controls preserve native geometry', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [DxfEditor],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+  });
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--cad-geometry');
+    localStorage.removeItem('t360-sketch');
+  });
+  it('panel visibility and entity explorer selection leave serialized drawing values unchanged', () => {
+    const editor = TestBed.createComponent(DxfEditor).componentInstance;
+    editor.sketch.entities = [
+      newEntity('line', [
+        [0, 0],
+        [30, 40],
+      ]),
+    ];
+    const before = JSON.stringify(editor.sketch);
+    editor.leftPanelOpen = false;
+    editor.rightPanelOpen = false;
+    editor.inspectEntity(editor.sketch.entities[0].id);
+    expect(editor.rightPanelOpen).toBe(true);
+    expect(editor.selectedCount).toBe(1);
+    expect(editor.propertyMeasurements[0].value).toBe(50);
+    expect(JSON.stringify(editor.sketch)).toBe(before);
+  });
+  it('zoom buttons preserve the center model coordinate and all entity data', () => {
+    const editor = TestBed.createComponent(DxfEditor).componentInstance;
+    editor.stage = { width: () => 800, height: () => 600, destroy: () => {} } as Konva.Stage;
+    editor.sketch.entities = [newEntity('circle', [[5, 6]], 10)];
+    const before = JSON.stringify(editor.sketch);
+    const center = [(400 - editor.offset[0]) / editor.zoom, (editor.offset[1] - 300) / editor.zoom];
+    editor.zoomBy(1.15);
+    expect((400 - editor.offset[0]) / editor.zoom).toBeCloseTo(center[0]);
+    expect((editor.offset[1] - 300) / editor.zoom).toBeCloseTo(center[1]);
+    expect(JSON.stringify(editor.sketch)).toBe(before);
+  });
+  it('reports local save state accurately after geometry and name edits', () => {
+    const editor = TestBed.createComponent(DxfEditor).componentInstance;
+    editor.sketch.entities = [newEntity('circle', [[5, 6]], 10)];
+    editor.save();
+    expect(editor.saveStatus).toBe('Saved in this browser');
+    editor.name = 'Renamed drawing';
+    editor.render();
+    expect(editor.saveStatus).toBe('Unsaved changes');
+    editor.save();
+    editor.selected = editor.sketch.entities[0].id;
+    editor.property('radius', '12');
+    expect(editor.saveStatus).toBe('Unsaved changes');
+  });
+});
