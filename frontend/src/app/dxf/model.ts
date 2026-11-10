@@ -1,3 +1,4 @@
+import { newId } from '../core/id';
 export type Point = [number, number];
 export interface Entity {
   id: string;
@@ -63,7 +64,7 @@ export const defaultStyle = (): AnnotationStyle => ({
 export function normalizeSketch(input: Partial<Sketch> & Pick<Sketch, 'entities'>): Sketch {
   return {
     ...input,
-    drawing_id: input.drawing_id || crypto.randomUUID(),
+    drawing_id: input.drawing_id || newId(),
     revision: input.revision || 1,
     schema_version: 1,
     units: input.units || null,
@@ -84,7 +85,7 @@ export function emptySketch(): Sketch {
   return normalizeSketch({ units: 'mm', entities: [] });
 }
 export const newEntity = (type: Entity['type'], points: Point[], radius = 1): Entity => ({
-  id: crypto.randomUUID(),
+  id: newId(),
   type,
   points,
   radius,

@@ -41,3 +41,9 @@ Rotation, trim, general polyline drawing, constraints, topology validation, dura
 ## Engineering annotations
 
 The editor now includes automatic and manual linked dimensions on the dedicated `ASME Y14.5` layer. See [annotation tools, compatibility and limitations](annotations.md). The layer name is not a compliance claim.
+
+## Cloud HTTP compatibility
+
+Drawing, entity and annotation IDs use the shared UUID v4 generator in `frontend/src/app/core/id.ts`. It uses native `crypto.randomUUID()` when available, and `crypto.getRandomValues()` otherwise. The latter also works on ordinary HTTP origins, where `randomUUID()` is normally unavailable. Existing saved IDs are retained; no drawing migration is required.
+
+If the browser console reports `crypto.randomUUID is not a function`, deploy the updated frontend build and refresh the browser cache. With the repository's Docker Compose deployment, run `docker compose up -d --build frontend` after updating the code. HTTPS enables the native secure-context API as well; localhost behavior can differ from a cloud HTTP URL.

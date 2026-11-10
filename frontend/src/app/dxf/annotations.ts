@@ -1,3 +1,4 @@
+import { newId } from '../core/id';
 import {
   Annotation,
   AnnotationStyle,
@@ -206,7 +207,7 @@ export function makeAnnotation(
   style: AnnotationStyle = defaultStyle(),
 ): Annotation | null {
   const a: Annotation = {
-    id: crypto.randomUUID(),
+    id: newId(),
     type,
     refs: [...refs],
     layer: ANNOTATION_LAYER,
