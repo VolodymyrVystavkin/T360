@@ -140,7 +140,10 @@
         </button>
       </div>
       <div class="tool-palette">
-        @for (item of ['select', 'pan', 'line', 'rectangle', 'circle', 'measure']; track item) {
+        @for (
+          item of ['select', 'pan', 'line', 'polyline', 'rectangle', 'circle', 'measure'];
+          track item
+        ) {
           <button
             [class.active]="tool === item"
             [attr.aria-pressed]="tool === item"
@@ -158,14 +161,102 @@
             <ui-icon [name]="item" /><span>{{ item }}</span>
           </button>
         }
-        <button
-          type="button"
-          disabled
-          title="Arc creation is not implemented. Imported arc properties can be edited."
-        >
-          <ui-icon name="arc" /><span>Arc</span>
-        </button>
+        <div class="arc-split">
+          <button
+            type="button"
+            [class.active]="tool === 'arc'"
+            [attr.aria-pressed]="tool === 'arc'"
+            (click)="setTool('arc')"
+            [title]="'Arc: ' + arcMethod"
+          >
+            <ui-icon name="arc" /><span>Arc</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Arc creation methods"
+            [attr.aria-expanded]="arcMenuOpen"
+            (click)="arcMenuOpen = !arcMenuOpen"
+          >
+            ▾
+          </button>
+        </div>
       </div>
+      @if (arcMenuOpen) {
+        <div class="arc-methods" aria-label="Arc creation methods">
+          @for (method of arcMethods; track method) {
+            <button
+              type="button"
+              [class.active]="arcMethod === method"
+              (click)="chooseArcMethod(method)"
+            >
+              {{ method }}
+            </button>
+          }
+        </div>
+      }
+      @if (tool === 'polyline' || tool === 'arc') {
+        <div class="drawing-input">
+          @if (tool === 'arc') {
+            <strong>Arc · {{ arcMethod }}</strong>
+            @if (scalarArc) {
+              <label
+                >{{ arcScalarLabel
+                }}<input
+                  type="number"
+                  step="any"
+                  [(ngModel)]="arcScalar"
+                  (ngModelChange)="refreshDrawingPreview()"
+              /></label>
+              <button (click)="finishArc()" [disabled]="drawingPoints.length !== 2">
+                Create arc
+              </button>
+            }
+            @if (
+              arcMethod === 'Start, Center, End' ||
+              arcMethod === 'Start, Center, Length' ||
+              arcMethod === 'Start, End, Radius'
+            ) {
+              <label class="check"
+                ><input
+                  type="checkbox"
+                  [(ngModel)]="arcClockwise"
+                  (change)="refreshDrawingPreview()"
+                />
+                Clockwise</label
+              >
+            }
+            <p class="hint">
+              Angles are signed degrees. Length means chord length. Radius creates a minor arc.
+            </p>
+          }
+          <p class="hint" aria-live="polite">{{ drawingPrompt }}</p>
+          <label
+            >Exact point ({{ sketch.units || 'drawing units' }})<input
+              [(ngModel)]="coordinateInput"
+              placeholder="x,y · @dx,dy · @distance&lt;angle"
+              (keydown.enter)="$event.preventDefault(); submitCoordinate()"
+              (keydown.escape)="setTool('select')"
+          /></label>
+          <button
+            (click)="submitCoordinate()"
+            [disabled]="
+              !coordinateInput.trim() || (tool === 'arc' && scalarArc && drawingPoints.length === 2)
+            "
+          >
+            Add exact point
+          </button>
+          @if (tool === 'polyline') {
+            <button (click)="finishPolyline()" [disabled]="drawingPoints.length < 2">
+              Finish open
+            </button>
+            <button (click)="finishPolyline(true)" [disabled]="drawingPoints.length < 3">
+              Close polyline
+            </button>
+          }
+          <button (click)="undoVertex()" [disabled]="!drawingPoints.length">Undo last point</button>
+          <button (click)="setTool('select')">Cancel</button>
+        </div>
+      }
       <div class="panel-title section">Drawing setup</div>
 
       <label
@@ -180,8 +271,18 @@
         </select></label
       >
       <p class="hint">Coordinates stay unchanged when assigning units.</p>
-      <label class="check"><input type="checkbox" [(ngModel)]="snap" /> Snap to 1 unit</label
+      <label class="check"><input type="checkbox" [(ngModel)]="snap" /> Geometry snapping</label
       ><label class="check"
+        ><input type="checkbox" [(ngModel)]="gridSnap" /> Include 1-unit grid snaps</label
+      ><label class="check"
+        ><input type="checkbox" [(ngModel)]="orthogonal" /> Orthogonal lines / polylines</label
+      ><label
+        >Snap tolerance (pixels)<input type="number" min="1" max="50" [(ngModel)]="snapTolerance"
+      /></label>
+      <p class="hint">
+        Priority: endpoint, midpoint, center, quadrant, nearest, grid. Hidden layers are excluded.
+      </p>
+      <label class="check"
         ><input type="checkbox" [(ngModel)]="grid" (change)="render()" /> Show grid</label
       >
       <div class="panel-title section">
@@ -447,6 +548,10 @@
               /></label>
             }
           </div>
+          @if (item.type === 'polyline') {
+            <button (click)="editPolylineVertex(i, 'add')">Add vertex after {{ i + 1 }}</button>
+            <button (click)="editPolylineVertex(i, 'remove')">Remove vertex {{ i + 1 }}</button>
+          }
         }
         @if (item.type === 'circle' || item.type === 'arc') {
           <label
@@ -516,3 +621,18 @@
     </p>
   }
 </div>
+
+@if (contextMenu; as menu) {
+  <div
+    class="polyline-context"
+    role="menu"
+    aria-label="Polyline actions"
+    [style.left.px]="menu.x"
+    [style.top.px]="menu.y"
+  >
+    <button role="menuitem" (click)="finishPolyline()">Finish</button>
+    <button role="menuitem" (click)="finishPolyline(true)">Close</button>
+    <button role="menuitem" (click)="undoVertex()">Undo Last Vertex</button>
+    <button role="menuitem" (click)="setTool('select')">Cancel</button>
+  </div>
+}

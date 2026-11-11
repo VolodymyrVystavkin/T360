@@ -59,6 +59,8 @@ def read_dxf(text):
         metadata = get_metadata(source)
         native_id = metadata.get('id') if isinstance(metadata, dict) else None
         item = {'id': native_id if native_id and not in_block else source_path.lstrip('/'), 'layer': source.dxf.layer, 'source_handle': source_path.lstrip('/'), 'source_type': kind}
+        if isinstance(metadata, dict) and 'revision' in metadata:
+            item['revision'] = metadata['revision']
         elevation = source.dxf.get('elevation', 0) if source.dxf.is_supported('elevation') else 0
         elevated = any(elevation) if hasattr(elevation, '__iter__') else elevation not in (0, None)
         if elevated or tuple(source.dxf.get('extrusion', (0, 0, 1)) if source.dxf.is_supported('extrusion') else (0, 0, 1)) != (0, 0, 1):
@@ -89,6 +91,8 @@ def read_dxf(text):
         else:
             skipped[kind] += 1
             continue
+        if item['type'] == 'polyline' and item['closed'] and len(item['points']) > 1 and item['points'][0] == item['points'][-1]:
+            item['points'].pop()  # DXF may explicitly repeat the closing vertex.
         if item['layer'] == ANNOTATION_LAYER:
             item['layer'] = 'Geometry'
             reserved_layer_geometry += 1
@@ -127,7 +131,7 @@ def write_dxf(sketch):
         elif kind == 'circle': source = model.add_circle(points[0], entity['radius'], dxfattribs=attrs)
         elif kind == 'arc': source = model.add_arc(points[0], entity['radius'], entity['start_angle'], entity['end_angle'], dxfattribs=attrs)
         elif kind == 'polyline': source = model.add_lwpolyline(points, close=entity['closed'], dxfattribs=attrs)
-        put_metadata(doc, source, {'id': entity['id']})
+        put_metadata(doc, source, {'id': entity['id'], 'revision': entity.get('revision', 1)})
     write_dimensions(doc, sketch)
     output = io.StringIO()
     doc.write(output)

@@ -102,6 +102,20 @@ Verified a clean frontend `npm ci`, 4 Angular/Vitest tests, 12 Python tests, the
 
 ## 2D DXF editor
 
+**Polyline** now supports connected open/closed paths, orthogonal tracking, exact
+absolute/relative/distance-angle input and vertex editing. **Arc** has a split
+button with seven creation methods, live previews and numeric parameters. See
+the [Polyline and Arc guide](docs/polyline-arc-tools.md) for input conventions,
+keyboard/context-menu actions and DXF behavior.
+
+Precision drawing now includes endpoint, midpoint, center, quadrant, nearest and
+optional one-unit grid snapping, an adjustable pixel capture radius, visible snap
+labels, live line/rectangle/circle previews and optional orthogonal lines. Use the
+left tool panel to configure these aids; Escape cancels pending drawing. Snapping
+places geometry without creating driving constraints. The parametric solver and
+advanced drawing/editing tools remain pending; see the [audited implementation
+inventory and phased plan](docs/parametric-sketch-plan.md).
+
 Open **http://localhost:4200/#dxf** (development) or **http://localhost:8080/#dxf** (Docker) for the new Angular/Konva editor. Import/export supported DXF geometry, draw lines/circles/rectangles, edit numeric properties, measure, manage layers, undo/redo, and save a sketch in your browser. The tolerance workspace remains available from the navigation.
 
 Install the updated backend requirements and run `npm ci` in `frontend`, or rebuild with `docker compose up --build`. See [DXF support, API and deployment limits](docs/dxf-editor.md). Public hosting has not been configured; the complete app needs both the UI and Python API.

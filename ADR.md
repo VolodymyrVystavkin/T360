@@ -1,5 +1,51 @@
 # Architecture Decision Records
 
+## ADR-006 — Polyline drafts and canonical arc construction
+
+**Date:** 2026-11-11
+**Status:** Implemented for the seven fully specified arc methods and polyline workflow.
+
+Reuse existing polyline/arc entities, Konva geometry/interaction layers, snapshot
+history and ezdxf interchange. Keep draft vertices separate from native entities;
+commit one stable-ID entity in one history checkpoint. Use pure TypeScript
+calculations in `drawing-tools.ts` for arc construction, numeric input and local
+vertex validation. The same arc calculation drives preview and commit. Retain
+canonical CCW native arcs; signed/CW construction swaps endpoints when necessary.
+Define Length as chord length and Direction as a tangent leaving the start,
+explicitly in the controls and guide. Do not infer the unspecified eighth method.
+
+Add optional typed consecutive line-segment records and entity revision metadata
+to schema version 1 with defaults/migration for legacy data. Sketch units remain
+the single unit authority. Python validates segment records; DXF regenerates them
+from vertices/closure and XDATA preserves entity IDs/revisions. Native invalid
+geometry stays inspectable; DXF export rejects degenerate polyline segments and
+insufficient closing vertices. No new rendering library or geometry kernel is
+needed. See [workflow, conventions and tests](docs/polyline-arc-tools.md).
+
+## ADR-005 — Incremental precision drawing on the existing renderer
+
+**Date:** 2026-11-11
+**Status:** Implemented precision-interaction subset; parametric solver remains planned.
+
+Retain the current Angular/Konva native editor and Python/ezdxf interchange. Extract
+pure model-space candidate calculations to `dxf/snapping.ts`; convert the pixel
+capture radius using the current zoom. Use deterministic endpoint, midpoint,
+center, quadrant, nearest and grid priority. Exclude hidden geometry. Orthogonal
+line mode takes precedence over off-axis captures. Snaps are placement aids and
+never implicit driving constraints.
+
+Use a separate non-listening Konva layer for snap feedback and drawing previews,
+avoiding reconstruction of geometry and annotation synchronization on pointer
+movement. Keep one-unit grid snapping independent of adaptive grid display. No
+new dependency or geometry kernel is justified for this bounded increment.
+
+The alternative of expanding all entity types and introducing a solver in one
+change would expose unsupported fall-through handling in existing consumers.
+Deliver schema migration, transactional numerical solving and editing in separate
+verified gates. See the [inventory, risks and delivery plan](docs/parametric-sketch-plan.md).
+Current search is linear in drawing size; intersection/perpendicular/tangent snaps,
+spatial indexing and browser performance validation remain future work.
+
 ## ADR-001 — Geometry-linked drawing annotations
 
 **Date:** 2026-11-10

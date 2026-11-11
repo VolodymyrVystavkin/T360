@@ -29,6 +29,7 @@ import {
   emptySketch,
   newEntity as entity,
   normalizeSketch,
+  polylineSegments,
 } from './model';
 import {
   autoDimension,
@@ -40,6 +41,16 @@ import {
   checkAnnotationCollisions,
 } from './annotations';
 import { dimensionGroup } from './dimension-renderer';
+import { findSnap, orthogonalPoint, SnapCandidate, snapPriority } from './snapping';
+import {
+  arcMethods,
+  ArcMethod,
+  createArc,
+  arcPreview,
+  parseCoordinate,
+  validPoint,
+  validVertices,
+} from './drawing-tools';
 export type { Entity } from './model';
 
 @Component({
@@ -57,6 +68,7 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   private changeDetector = inject(ChangeDetectorRef);
   stage!: Konva.Stage;
   private drawing!: Konva.Layer;
+  private interaction?: Konva.Layer;
   private observer?: ResizeObserver;
   sketch: Sketch = emptySketch();
   annotationLayer = ANNOTATION_LAYER;
@@ -123,11 +135,60 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   annotationPrecision = 2;
   annotationText = annotationText;
   tool = 'select';
+  drawingPoints: Point[] = [];
+  arcMethods = arcMethods;
+  arcMethod: ArcMethod = (() => {
+    try {
+      const saved = localStorage.getItem('t360-arc-method');
+      return arcMethods.find((m) => m === saved) || '3-Point';
+    } catch {
+      return '3-Point';
+    }
+  })();
+  arcMenuOpen = false;
+  arcScalar = 90;
+  arcClockwise = false;
+  coordinateInput = '';
+  contextMenu: { x: number; y: number } | null = null;
+  get scalarArc() {
+    return !['3-Point', 'Start, Center, End', 'Start, End, Direction'].includes(this.arcMethod);
+  }
+  get arcScalarLabel() {
+    return this.arcMethod.endsWith('Length')
+      ? 'Chord length'
+      : this.arcMethod.endsWith('Radius')
+        ? 'Radius'
+        : 'Signed sweep (degrees)';
+  }
+  get drawingPrompt() {
+    if (this.tool === 'polyline')
+      return 'Click vertices · Enter: finish · C: close · Backspace: undo vertex · Esc: cancel';
+    if (this.tool !== 'arc') return '';
+    const n = this.drawingPoints.length;
+    if (!n) return 'Place the start point.';
+    if (n === 1)
+      return this.arcMethod === '3-Point'
+        ? 'Place a point on the arc.'
+        : this.arcMethod.startsWith('Start, Center,')
+          ? 'Place the center.'
+          : 'Place the end point.';
+    return this.scalarArc
+      ? `Enter ${this.arcScalarLabel.toLowerCase()}, then Create arc (or click canvas).`
+      : this.arcMethod === 'Start, End, Direction'
+        ? 'Place a point along the tangent leaving the start.'
+        : this.arcMethod === '3-Point'
+          ? 'Place the end point.'
+          : 'Place the end direction; it is projected onto the circle.';
+  }
   selected = '';
   name = 'Untitled drawing';
   message = 'Choose a tool. Click two points to draw or measure.';
   busy = false;
   snap = true;
+  gridSnap = true;
+  orthogonal = false;
+  snapTolerance = 8;
+  snapCandidate: SnapCandidate | null = null;
   grid = true;
   activeLayer = 'Geometry';
   newLayer = '';
@@ -200,13 +261,25 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.stage = new Konva.Stage({ container: this.canvas.nativeElement, width: 800, height: 600 });
     this.drawing = new Konva.Layer();
     this.stage.add(this.drawing);
+    this.interaction = new Konva.Layer({ listening: false });
+    this.stage.add(this.interaction);
     this.stage.on('click tap', (ev) => {
       this.click(ev);
       this.changeDetector.markForCheck();
     });
+    this.stage.on('contextmenu', (ev) => {
+      this.openPolylineMenu(ev.evt);
+      this.changeDetector.markForCheck();
+    });
     this.stage.on('mousemove', () => {
       this.cursor = this.world();
+      this.renderInteraction();
       this.changeDetector.markForCheck();
+    });
+    this.stage.on('mouseleave', () => {
+      this.snapCandidate = null;
+      this.interaction?.destroyChildren();
+      this.interaction?.batchDraw();
     });
     this.stage.on('wheel', (ev) => {
       ev.evt.preventDefault();
@@ -242,6 +315,10 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   setTool(tool: string) {
     this.tool = tool;
     this.start = null;
+    this.drawingPoints = [];
+    this.contextMenu = null;
+    this.arcMenuOpen = false;
+    this.snapCandidate = null;
     this.angularFirst = '';
     this.stage?.draggable(tool === 'pan');
     this.message =
@@ -256,14 +333,37 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
   }
   world(): Point {
     const p = this.stage.getPointerPosition() || { x: 0, y: 0 };
-    const value: Point = [(p.x - this.offset[0]) / this.zoom, (this.offset[1] - p.y) / this.zoom];
-    return this.snap ? (value.map((v) => Math.round(v)) as Point) : value;
+    let value: Point = [(p.x - this.offset[0]) / this.zoom, (this.offset[1] - p.y) / this.zoom];
+    const ortho = this.orthogonal && ['line', 'polyline'].includes(this.tool) && this.start;
+    if (ortho) value = orthogonalPoint(ortho, value);
+    this.snapCandidate = this.snap
+      ? findSnap(
+          value,
+          this.sketch.entities.filter((e) => !this.hidden.has(e.layer)),
+          this.zoom,
+          this.snapTolerance,
+          this.gridSnap ? snapPriority : snapPriority.filter((k) => k !== 'grid'),
+        )
+      : null;
+    if (this.snapCandidate && ortho) {
+      const projected = orthogonalPoint(ortho, this.snapCandidate.point);
+      if (
+        Math.hypot(
+          projected[0] - this.snapCandidate.point[0],
+          projected[1] - this.snapCandidate.point[1],
+        ) > 1e-9
+      )
+        this.snapCandidate = null;
+    }
+    return this.snapCandidate?.point || value;
   }
   screen(p: Point): Point {
     return [p[0] * this.zoom + this.offset[0], this.offset[1] - p[1] * this.zoom];
   }
   click(ev: Konva.KonvaEventObject<MouseEvent>) {
+    if (ev.evt?.button && ev.evt.button !== 0) return;
     if (this.busy || this.tool === 'pan') return;
+    this.contextMenu = null;
     const geometryId = ev.target.attrs['entityId'] || '';
     if (['dimension', 'diameter', 'radius', 'angular'].includes(this.tool)) {
       this.dimensionClick(geometryId);
@@ -281,6 +381,11 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       return;
     }
     const point = this.world();
+    this.cursor = point;
+    if (this.tool === 'polyline' || this.tool === 'arc') {
+      this.addDrawingPoint(point);
+      return;
+    }
     if (!this.start) {
       this.start = point;
       this.message = `First point: ${point.join(', ')}. Choose second point.`;
@@ -314,12 +419,169 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.message = 'Geometry created.';
     this.render();
   }
+  chooseArcMethod(method: ArcMethod) {
+    this.arcMethod = method;
+    try {
+      localStorage.setItem('t360-arc-method', method);
+    } catch {
+      /* Preference remains usable in memory. */
+    }
+    this.setTool('arc');
+  }
+  openPolylineMenu(event: MouseEvent) {
+    if (this.tool !== 'polyline') return;
+    event.preventDefault();
+    this.contextMenu = {
+      x: Math.max(0, Math.min(event.clientX, window.innerWidth - 190)),
+      y: Math.max(0, Math.min(event.clientY, window.innerHeight - 190)),
+    };
+  }
+  refreshDrawingPreview() {
+    this.renderInteraction();
+  }
+  addDrawingPoint(point: Point) {
+    if (this.busy || !validPoint(point)) {
+      this.message = 'Enter finite coordinates within ±1e9.';
+      return;
+    }
+    if (this.tool === 'polyline') {
+      const last = this.drawingPoints.at(-1);
+      if (last && Math.hypot(point[0] - last[0], point[1] - last[1]) <= 1e-8) {
+        this.message = 'Zero-length segments are not allowed.';
+        return;
+      }
+      if (this.drawingPoints.length >= 10000) {
+        this.message = 'Maximum 10,000 vertices.';
+        return;
+      }
+      this.drawingPoints.push([...point]);
+      this.start = point;
+    } else if (this.tool === 'arc') {
+      if (this.drawingPoints.length < 2) {
+        if (
+          this.drawingPoints.length &&
+          Math.hypot(point[0] - this.drawingPoints[0][0], point[1] - this.drawingPoints[0][1]) <=
+            1e-8
+        ) {
+          this.message = 'Choose distinct points.';
+          return;
+        }
+        this.drawingPoints.push([...point]);
+      } else {
+        this.finishArc(this.scalarArc ? undefined : point);
+        return;
+      }
+    }
+    this.cursor = point;
+    this.message = this.drawingPrompt;
+    this.renderInteraction();
+  }
+  submitCoordinate() {
+    if (this.tool === 'arc' && this.scalarArc && this.drawingPoints.length === 2) {
+      this.message = `Enter ${this.arcScalarLabel.toLowerCase()} in the parameter field, then Create arc.`;
+      return;
+    }
+    try {
+      this.addDrawingPoint(parseCoordinate(this.coordinateInput, this.drawingPoints.at(-1)));
+      this.coordinateInput = '';
+    } catch (error) {
+      this.message = (error as Error).message;
+    }
+  }
+  finishPolyline(closed = false) {
+    if (this.tool !== 'polyline' || this.busy) return;
+    const points = this.drawingPoints.map((p) => [...p] as Point);
+    if (
+      closed &&
+      points.length > 1 &&
+      Math.hypot(points[0][0] - points.at(-1)![0], points[0][1] - points.at(-1)![1]) <= 1e-8
+    )
+      points.pop();
+    if (!validVertices(points, closed)) {
+      this.message = closed
+        ? 'Closing needs at least three distinct vertices and nonzero segments.'
+        : 'A polyline needs at least two vertices and nonzero segments.';
+      return;
+    }
+    const item = entity('polyline', points);
+    item.closed = closed;
+    this.commitDrawing(item);
+  }
+  undoVertex() {
+    this.drawingPoints.pop();
+    this.start = this.tool === 'polyline' ? this.drawingPoints.at(-1) || null : null;
+    this.contextMenu = null;
+    this.message = this.drawingPrompt;
+    this.renderInteraction();
+  }
+  finishArc(third?: Point) {
+    if (this.tool !== 'arc' || this.drawingPoints.length !== 2 || this.busy) return;
+    try {
+      const geometry = createArc(
+        this.arcMethod,
+        third ? [...this.drawingPoints, third] : this.drawingPoints,
+        this.arcScalar,
+        this.arcClockwise,
+      );
+      this.commitDrawing({ ...entity('arc', geometry.points, geometry.radius), ...geometry });
+    } catch (error) {
+      this.message = (error as Error).message;
+    }
+  }
+  private commitDrawing(item: Entity) {
+    this.checkpoint();
+    item.layer = this.activeLayer === ANNOTATION_LAYER ? 'Geometry' : this.activeLayer;
+    item.revision = 1;
+    this.sketch.layers = [...new Set([...this.sketch.layers, item.layer])];
+    if (item.type === 'polyline') item.segments = polylineSegments(item.points, item.closed);
+    this.sketch.entities.push(item);
+    this.selected = item.id;
+    this.selectionIds = [item.id];
+    this.selectedAnnotation = '';
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
+    this.snapCandidate = null;
+    this.message = `${item.type} created. ${this.drawingPrompt}`;
+    this.render();
+  }
+  editPolylineVertex(index: number, action: 'add' | 'remove') {
+    const item = this.current;
+    if (!item || item.type !== 'polyline' || index < 0 || index >= item.points.length) return;
+    const points = item.points.map((p) => [...p] as Point);
+    if (action === 'remove') points.splice(index, 1);
+    else {
+      const a = points[index],
+        b = points[(index + 1) % points.length];
+      // At an open end, extend the last segment by half its length.
+      const previous = points[Math.max(0, index - 1)];
+      points.splice(
+        index + 1,
+        0,
+        !item.closed && index === points.length - 1
+          ? [a[0] + (a[0] - previous[0]) / 2, a[1] + (a[1] - previous[1]) / 2]
+          : [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+      );
+    }
+    if (!validVertices(points, item.closed)) {
+      this.message = 'Vertex edit would create invalid or zero-length segments.';
+      return;
+    }
+    this.checkpoint();
+    item.points = points;
+    item.segments = polylineSegments(points, item.closed);
+    item.revision = (item.revision || 1) + 1;
+    this.render();
+  }
   checkpoint() {
     this.history.push(JSON.stringify(this.sketch));
     if (this.history.length > 100) this.history.shift();
     this.future = [];
   }
   undo() {
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
     const value = this.history.pop();
     if (!value) return;
     this.future.push(JSON.stringify(this.sketch));
@@ -330,6 +592,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.render();
   }
   redo() {
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
     const value = this.future.pop();
     if (!value) return;
     this.history.push(JSON.stringify(this.sketch));
@@ -366,7 +631,16 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       this.message = 'Enter a finite, valid geometry value.';
       return;
     }
+    if (field === 'point' && current.type === 'polyline') {
+      const points = current.points.map((p) => [...p] as Point);
+      points[index][axis] = value;
+      if (!validVertices(points, current.closed)) {
+        this.message = 'Vertex edit would create a zero-length segment.';
+        return;
+      }
+    }
     this.checkpoint();
+    current.revision = (current.revision || 1) + 1;
     if (field === 'point') current.points[index][axis] = value;
     else if (field === 'radius') current.radius = value;
     else if (field === 'start_angle' || field === 'end_angle') {
@@ -376,6 +650,8 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       }
       current[field] = value;
     } else if (field === 'layer') current.layer = raw === ANNOTATION_LAYER ? 'Geometry' : raw;
+    if (current.type === 'polyline')
+      current.segments = polylineSegments(current.points, current.closed);
     this.render();
   }
   toggleLayer(layer: string) {
@@ -402,6 +678,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.render();
   }
   fresh() {
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
     this.checkpoint();
     this.sketch = emptySketch();
     this.selectedAnnotation = '';
@@ -413,6 +692,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.render();
   }
   demo() {
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
     this.checkpoint();
     const border = entity('polyline', [
       [0, 0],
@@ -488,7 +770,10 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
           ? 'Saved in this browser'
           : 'Unsaved changes';
     this.changeDetector.markForCheck();
-    if (!this.drawing) return;
+    if (!this.drawing) {
+      this.renderInteraction();
+      return;
+    }
     this.drawing.destroyChildren();
     const width = this.stage.width(),
       height = this.stage.height();
@@ -620,6 +905,116 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       );
     }
     this.drawing.batchDraw();
+    this.renderInteraction();
+  }
+  private renderInteraction() {
+    const layer = this.interaction;
+    if (!layer) return;
+    layer.destroyChildren();
+    if (['select', 'pan', 'dimension', 'diameter', 'radius', 'angular'].includes(this.tool)) {
+      layer.batchDraw();
+      return;
+    }
+    const previewStyle = {
+      stroke: this.theme.selected,
+      strokeWidth: 1.5,
+      dash: [6, 4],
+      listening: false,
+    };
+    if (this.tool === 'polyline' && this.drawingPoints.length) {
+      layer.add(
+        new Konva.Line({
+          ...previewStyle,
+          points: [...this.drawingPoints, this.cursor].flatMap((p) => this.screen(p)),
+        }),
+      );
+      for (const p of this.drawingPoints) {
+        const [x, y] = this.screen(p);
+        layer.add(
+          new Konva.Circle({ x, y, radius: 3, fill: this.theme.selected, listening: false }),
+        );
+      }
+    } else if (this.tool === 'arc' && this.drawingPoints.length) {
+      layer.add(
+        new Konva.Line({
+          ...previewStyle,
+          points: [...this.drawingPoints, this.cursor].flatMap((p) => this.screen(p)),
+        }),
+      );
+      if (this.drawingPoints.length === 2) {
+        try {
+          const arc = createArc(
+            this.arcMethod,
+            this.scalarArc ? this.drawingPoints : [...this.drawingPoints, this.cursor],
+            this.arcScalar,
+            this.arcClockwise,
+          );
+          layer.add(
+            new Konva.Line({
+              ...previewStyle,
+              dash: [],
+              points: arcPreview(arc).flatMap((p) => this.screen(p)),
+            }),
+          );
+        } catch {
+          /* Incomplete/degenerate pointer positions have no arc preview. */
+        }
+      }
+    } else if (this.start) {
+      const first = this.screen(this.start),
+        last = this.screen(this.cursor);
+      const style = {
+        stroke: this.theme.selected,
+        strokeWidth: 1.5,
+        dash: [6, 4],
+        listening: false,
+      };
+      if (this.tool === 'circle')
+        layer.add(
+          new Konva.Circle({
+            ...style,
+            x: first[0],
+            y: first[1],
+            radius: Math.hypot(last[0] - first[0], last[1] - first[1]),
+          }),
+        );
+      else
+        layer.add(
+          new Konva.Line({
+            ...style,
+            points:
+              this.tool === 'rectangle'
+                ? [first[0], first[1], last[0], first[1], last[0], last[1], first[0], last[1]]
+                : [...first, ...last],
+            closed: this.tool === 'rectangle',
+          }),
+        );
+    }
+    if (this.snapCandidate) {
+      const [x, y] = this.screen(this.snapCandidate.point);
+      layer.add(
+        new Konva.Rect({
+          x: x - 5,
+          y: y - 5,
+          width: 10,
+          height: 10,
+          stroke: this.theme.selected,
+          strokeWidth: 2,
+          listening: false,
+        }),
+      );
+      layer.add(
+        new Konva.Text({
+          x: x + 9,
+          y: y + 9,
+          text: this.snapCandidate.kind,
+          fill: this.theme.selected,
+          fontSize: 12,
+          listening: false,
+        }),
+      );
+    }
+    layer.batchDraw();
   }
   private validAnnotationSettings(): boolean {
     const s = this.annotationStyle;
@@ -823,6 +1218,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
       })
       .subscribe({
         next: (sketch) => {
+          this.drawingPoints = [];
+          this.start = null;
+          this.contextMenu = null;
           this.checkpoint();
           this.sketch = normalizeSketch({
             ...sketch,
@@ -922,6 +1320,9 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     }
   }
   restore() {
+    this.drawingPoints = [];
+    this.start = null;
+    this.contextMenu = null;
     try {
       const data = JSON.parse(localStorage.getItem('t360-sketch') || 'null');
       if (!data) {
@@ -949,7 +1350,31 @@ export class DxfEditor implements AfterViewInit, OnDestroy {
     this.cad.capture(this.sketch, this.name);
   }
   @HostListener('window:keydown', ['$event']) key(event: KeyboardEvent) {
+    if (event.key === 'Escape' && ['polyline', 'arc'].includes(this.tool)) {
+      event.preventDefault();
+      this.setTool('select');
+      return;
+    }
     if ((event.target as HTMLElement)?.matches('input,select,textarea')) return;
+    if (
+      event.key === 'Enter' &&
+      this.tool === 'arc' &&
+      this.scalarArc &&
+      this.drawingPoints.length === 2
+    ) {
+      event.preventDefault();
+      this.finishArc();
+      return;
+    }
+    if (this.tool === 'polyline' && !event.ctrlKey && !event.metaKey) {
+      if (['Enter', 'Backspace', 'c', 'C'].includes(event.key)) {
+        event.preventDefault();
+        if (event.key === 'Enter') this.finishPolyline();
+        else if (event.key === 'Backspace') this.undoVertex();
+        else this.finishPolyline(true);
+        return;
+      }
+    }
     if (event.key === 'Escape') this.setTool('select');
     if (event.key === 'Delete') this.remove();
     if ((event.ctrlKey || event.metaKey) && event.key === 'z') {

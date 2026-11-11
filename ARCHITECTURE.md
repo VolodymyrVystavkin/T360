@@ -479,3 +479,26 @@ The subsequent automatic relationship workflow (ADR-003) generates the signed fo
 The Angular shell now uses `WorkbenchHeader`, a workspace navigation rail and real browser-local Dashboard/Settings pages. Existing `#dxf`/`#tolerance` navigation remains valid. `design-tokens.scss` centralizes semantic colors, typography, contrast-aware control/feedback states, spacing and motion. Shared SVG icons, empty/loading/error states and scoped control primitives complement the existing Angular Material controls. UI preferences are isolated from native drawing/draft storage.
 
 The existing CAD editor remains authoritative for geometry. Collapsible panels, entity exploration, hover cues, view-only zoom buttons and save-status display are presentation additions. A CSS-to-Konva adapter supplies rendering colors without changing native entity/annotation serialization. Existing tolerance services and FastAPI contracts are unchanged. See [UI design system and limitations](docs/ui-design-system.md).
+
+## Precision drawing increment (2026-11-11)
+
+The existing Konva renderer now has a non-listening interaction layer for live
+line/rectangle/circle previews and snap indicators. Pure TypeScript candidate
+calculations capture visible endpoints, midpoints, centers, quadrants, nearest
+points and optional one-unit grid points using a screen-pixel tolerance converted
+to model units. Optional orthogonal line placement preserves fractional coordinates.
+These aids introduce no implicit constraints or schema/API changes. The audited
+[capability inventory and staged parametric plan](docs/parametric-sketch-plan.md)
+separate implemented interaction from the pending constraint solver, discriminated
+geometry schema, advanced drawing/editing and validation work. See ADR-005.
+
+## Polyline and arc creation (2026-11-11)
+
+The editor now maintains transient multi-point drafts and commits a complete
+polyline or arc as one undoable entity. Pure geometry/input helpers support seven
+arc methods, numeric coordinate input and local vertex validation. Polyline
+segment records reference consecutive vertex indices and are validated by Python;
+legacy data receives defaults. Entity revisions and IDs survive native snapshots
+and supported DXF round trips. Sketch units remain authoritative. Existing Konva
+previews, reference annotations, selection/property editing and tolerance services
+are reused. See ADR-006 and the [tool guide](docs/polyline-arc-tools.md).

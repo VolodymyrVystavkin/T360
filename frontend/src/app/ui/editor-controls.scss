@@ -156,3 +156,32 @@ dxf-editor {
     margin-top: 4px;
   }
 }
+
+dxf-editor {
+  .arc-methods,
+  .drawing-input {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .polyline-context {
+    position: fixed;
+    z-index: 100;
+    display: grid;
+    width: 185px;
+    padding: 8px;
+    gap: 4px;
+    background: var(--surface, white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px #0003;
+  }
+
+  .arc-split {
+    display: flex;
+    gap: 2px;
+  }
+  .arc-split button:first-child {
+    flex: 1;
+  }
+}

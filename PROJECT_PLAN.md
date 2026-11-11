@@ -453,6 +453,19 @@ Ship three connected but independent technical demonstrators and prove forward-d
 
 ## Codex workflow and progress tracking
 
+2026-11-11: The requested Polyline/Arc increment adds multi-point drafts, numeric
+coordinates, vertex editing and the seven named arc construction methods, with
+native/DXF revision and segment metadata tests. This implements a bounded part of
+the CAD drawing-breadth gate; the [tool guide](docs/polyline-arc-tools.md) describes
+the conventions and remaining validation limits. No constraint-solver or 3D gate
+is claimed complete.
+
+2026-11-11: The user authorized a separate incremental professional 2D sketch
+editor track. The [repository inventory and delivery gates](docs/parametric-sketch-plan.md)
+record audited reuse, missing capabilities and risks. The first bounded precision
+interaction increment adds geometry snapping, live feedback and orthogonal lines;
+it does not establish completion of the constraint or eight-week acceptance gates.
+
 1. Read this plan and audit the existing repository before modifying files.
 2. Map existing code/tests to each day and acceptance gate; mark `verified`, `partial`, `missing` or `blocked` only with file/test evidence.
 3. Start with missing Week 1 work before Week 2; do not assume previous conversations/screenshots prove completion.

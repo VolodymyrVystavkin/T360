@@ -15,6 +15,71 @@ describe('DXF sketch editing', () => {
     editor = TestBed.createComponent(DxfEditor).componentInstance;
   });
   afterEach(() => TestBed.inject(HttpTestingController).verify());
+  it('snaps to fractional endpoints, excludes hidden layers and can disable snapping', () => {
+    editor.sketch.entities = [
+      newEntity('line', [
+        [5.25, 10.5],
+        [25, 20],
+      ]),
+    ];
+    editor.stage = {
+      getPointerPosition: () => ({ x: 122, y: 357 }),
+      destroy: () => {},
+    } as Konva.Stage;
+    expect(editor.world()).toEqual([5.25, 10.5]);
+    expect(editor.snapCandidate?.kind).toBe('endpoint');
+    editor.sketch.hidden_layers = ['Geometry'];
+    editor.gridSnap = false;
+    expect(editor.world()).toEqual([5.5, 10.75]);
+    expect(editor.snapCandidate).toBeNull();
+    editor.sketch.hidden_layers = [];
+    editor.snap = false;
+    expect(editor.world()).toEqual([5.5, 10.75]);
+  });
+  it('commits orthogonal geometry with stable IDs through undo/redo and Escape cancels', () => {
+    let pointer = { x: 105, y: 390 };
+    editor.stage = {
+      getPointerPosition: () => pointer,
+      destroy: () => {},
+      draggable: () => {},
+    } as unknown as Konva.Stage;
+    editor.tool = 'line';
+    editor.snap = false;
+    editor.orthogonal = true;
+    const event = { target: { attrs: {} } } as Konva.KonvaEventObject<MouseEvent>;
+    editor.click(event);
+    pointer = { x: 139, y: 387 };
+    editor.click(event);
+    expect(editor.sketch.entities[0].points).toEqual([
+      [1.25, 2.5],
+      [9.75, 2.5],
+    ]);
+    const id = editor.sketch.entities[0].id;
+    editor.undo();
+    editor.redo();
+    expect(editor.sketch.entities[0].id).toBe(id);
+    editor.click(event);
+    editor.key(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(editor.start).toBeNull();
+    expect(editor.sketch.entities).toHaveLength(1);
+  });
+  it('lets orthogonal mode take precedence over off-axis snap candidates', () => {
+    editor.stage = {
+      getPointerPosition: () => ({ x: 140, y: 398 }),
+      destroy: () => {},
+    } as Konva.Stage;
+    editor.sketch.entities = [
+      newEntity('line', [
+        [10, 0.25],
+        [20, 20],
+      ]),
+    ];
+    editor.tool = 'line';
+    editor.start = [0, 0];
+    editor.orthogonal = true;
+    expect(editor.world()).toEqual([10, 0]);
+    expect(editor.snapCandidate).toBeNull();
+  });
   it('draws in model coordinates independently of screen scale and supports undo/redo', () => {
     let pointer = { x: 120, y: 360 };
     editor.stage = { getPointerPosition: () => pointer, destroy: () => {} } as Konva.Stage;

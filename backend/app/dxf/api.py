@@ -1,4 +1,5 @@
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -48,5 +49,12 @@ def export_dxf(sketch: Sketch):
         raise HTTPException(422, 'Assign drawing units before export.')
     if any(a.status != 'valid' for a in sketch.annotations):
         raise HTTPException(422, 'Resolve or delete invalid and orphan annotations before export.')
+    for entity in sketch.entities:
+        if entity.type == 'polyline':
+            points = entity.points
+            if any(math.dist(a, b) <= 1e-8 for a, b in zip(points, points[1:])) or (
+                entity.closed and (len(set(points)) < 3 or math.dist(points[0], points[-1]) <= 1e-8)
+            ):
+                raise HTTPException(422, 'Polyline needs distinct vertices and nonzero segments before export.')
     result = worker({'operation': 'export', 'sketch': sketch.model_dump()})
     return Response(result, media_type='application/dxf', headers={'Content-Disposition': 'attachment; filename="drawing.dxf"'})

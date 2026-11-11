@@ -1,5 +1,17 @@
 import { newId } from '../core/id';
 export type Point = [number, number];
+export interface PolylineSegment {
+  type: 'line';
+  start_index: number;
+  end_index: number;
+}
+export function polylineSegments(points: Point[], closed: boolean): PolylineSegment[] {
+  return Array.from({ length: Math.max(0, points.length - (closed ? 0 : 1)) }, (_, i) => ({
+    type: 'line',
+    start_index: i,
+    end_index: (i + 1) % points.length,
+  }));
+}
 export interface Entity {
   id: string;
   type: 'line' | 'circle' | 'arc' | 'polyline';
@@ -11,6 +23,8 @@ export interface Entity {
   closed: boolean;
   source_handle?: string;
   source_type?: string | null;
+  revision?: number;
+  segments?: PolylineSegment[] | null;
 }
 export const ANNOTATION_LAYER = 'ASME Y14.5';
 export interface AnnotationStyle {
@@ -64,6 +78,9 @@ export const defaultStyle = (): AnnotationStyle => ({
 export function normalizeSketch(input: Partial<Sketch> & Pick<Sketch, 'entities'>): Sketch {
   return {
     ...input,
+    entities: input.entities.map((e) =>
+      e.type === 'polyline' ? { ...e, segments: polylineSegments(e.points, e.closed) } : e,
+    ),
     drawing_id: input.drawing_id || newId(),
     revision: input.revision || 1,
     schema_version: 1,

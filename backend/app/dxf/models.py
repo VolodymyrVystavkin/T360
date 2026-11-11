@@ -9,6 +9,12 @@ ANNOTATION_LAYER = 'ASME Y14.5'
 UNITS = Literal['mm', 'cm', 'm', 'in', 'ft']
 Point = tuple[float, float]
 
+class PolylineSegment(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    type: Literal['line'] = 'line'
+    start_index: int = Field(ge=0, strict=True)
+    end_index: int = Field(ge=0, strict=True)
+
 class Entity(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
     id: str = Field(min_length=1, max_length=100)
@@ -21,6 +27,8 @@ class Entity(BaseModel):
     start_angle: float = Field(default=0, ge=-360, le=360)
     end_angle: float = Field(default=90, ge=-360, le=360)
     closed: bool = False
+    revision: int = Field(default=1, ge=1, strict=True)
+    segments: list[PolylineSegment] | None = Field(default=None, max_length=10000)
 
     @model_validator(mode='after')
     def geometry(self):
@@ -31,6 +39,14 @@ class Entity(BaseModel):
             raise ValueError('Wrong point count')
         if self.type == 'polyline' and len(self.points) < 2:
             raise ValueError('Polyline needs two points')
+        if self.type == 'polyline':
+            expected_segments = [PolylineSegment(start_index=i, end_index=(i+1) % len(self.points))
+                                 for i in range(len(self.points) - (0 if self.closed else 1))]
+            if self.segments is not None and self.segments != expected_segments:
+                raise ValueError('Polyline segments must match consecutive vertices and closure')
+            self.segments = expected_segments
+        elif self.segments is not None:
+            raise ValueError('Segment records are only supported for polylines')
         if any(abs(value) > 1e9 for point in self.points for value in point):
             raise ValueError('Coordinates out of bounds')
         return self
